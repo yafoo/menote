@@ -1,22 +1,39 @@
 # docker/Dockerfile.dockerignore —— 专属于本 Dockerfile 的排除规则（BuildKit 认可的两处之一：
 # ① context 根的裸 .dockerignore；② 与 Dockerfile 同目录、以 Dockerfile 名为前缀的本文件——②优先级更高）
 # pushme-server 的 docker/.dockerignore（子目录裸名）BuildKit 不读，别用那种写法
-# ⚠ 安全：data/（真实数据库、P2P 私钥、配对白名单）和 public/upload/（用户上传文件）
+
+# ⚠ 安全红线：data/（真实数据库、P2P 私钥、配对白名单）和 public/upload/（用户上传文件）
 #   绝不能进镜像——镜像会公开发布到 Docker Hub
 /data
 /public/upload
-/node_modules
+
+# ⚠ 安装锁：镜像里必须不存在，否则新用户无法进入安装向导（/install）
+# （容器内首次启动由 Run.sh 依据持久卷里的 DB 状态自行恢复，见 docker/Run.sh）
+/config/lock.js
+
+# 开发/构建产物，不进生产镜像
+/node_modules          # 避免本地 node_modules 污染构建上下文（多阶段构建会从 deps 阶段复制）
+*.log
+*.tmp.cjs
+
+# 源码控制/CI 配置
 /.git
 /.github
 /.gitignore
-/.dockerignore
+
+# 平台特定代码（Android 客户端、FPK 部署配置）
 /android
+/fpk
+
+# 文档/技能/脚本（非运行时必需）
+/skill
 /scripts
 /test-data.js
-# Dockerfile/Run.sh 自身不排除：被排除的文件不进构建上下文，COPY 必失败；
-# 镜像里带一份无害（无敏感内容）
-# 安装锁：镜像里必须不存在，否则新用户无法进入安装向导（/install）
-# （容器内首次启动由 Run.sh 依据持久卷里的 DB 状态自行恢复，见 docker/Run.sh）
-/config/lock.js
-*.log
-*.tmp.cjs
+/jsconfig.json
+/types.js              # jj.js 类型定义，运行时不需要
+
+# docker-compose.yml 是宿主机部署用，不进镜像
+/docker-compose.yml
+
+# 本 Dockerfile 和 Run.sh 需要 COPY 进镜像（CMD 依赖），不能排除
+# docker/ 目录整体不被排除，确保 Run.sh 能进上下文
