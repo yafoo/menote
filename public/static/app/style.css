@@ -64,6 +64,16 @@ body {
     color: #409eff;
 }
 
+/* 管理后台入口：稍微淡一点，hover 时变亮 */
+.header .nav .admin-link {
+    color: #999;
+    font-size: 13px;
+}
+
+.header .nav .admin-link:hover {
+    color: #409eff;
+}
+
 .header .search-form {
     display: flex;
     border: 1px solid #ddd;

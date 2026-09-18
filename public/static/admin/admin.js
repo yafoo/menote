@@ -714,6 +714,9 @@ const CategoryTree = {
                     <el-button size="small" text @click="store.navigateFromSidebar('/admin/p2p')" title="P2P 管理">
                         <el-icon><Connection /></el-icon>
                     </el-button>
+                    <el-button size="small" text @click="goToHome" title="访问前台首页">
+                        <el-icon><View /></el-icon>
+                    </el-button>
                     <el-button size="small" text @click="logout" title="退出登录">
                         <el-icon><SwitchButton /></el-icon>
                     </el-button>
@@ -1073,6 +1076,23 @@ const CategoryTree = {
             }
         };
 
+        const goToHome = async () => {
+            try {
+                await ElementPlus.ElMessageBox.confirm(
+                    '确定要访问前台首页吗？',
+                    '跳转确认',
+                    {
+                        confirmButtonText: '确定',
+                        cancelButtonText: '取消',
+                        type: 'info'
+                    }
+                );
+                window.open('/', '_blank');
+            } catch(e) {
+                // 用户取消确认框：留在当前页
+            }
+        };
+
         return {
             store,
             categories: computed(() => store.categories),
@@ -1097,7 +1117,8 @@ const CategoryTree = {
             saveCate,
             createNote,
             createNoteInCate,
-            logout
+            logout,
+            goToHome
         };
     }
 };
