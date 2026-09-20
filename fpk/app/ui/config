@@ -1,6 +1,6 @@
 {
   ".url": {
-    "menote.main": {
+    "menote": {
       "title": "MeNote",
       "icon": "images/icon_{0}.png",
       "type": "url",

@@ -9,4 +9,4 @@ maintainer_url=https://github.com/yafoo/menote
 distributor=yafoo
 distributor_url=https://github.com/yafoo
 desktop_uidir=ui
-desktop_applaunchname=menote.main
+desktop_applaunchname=menote
