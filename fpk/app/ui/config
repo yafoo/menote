@@ -6,7 +6,7 @@
       "type": "url",
       "protocol": "http",
       "port": "${wizard_panel_port}",
-      "url": "/",
+      "url": "/admin",
       "allUsers": true
     }
   }
