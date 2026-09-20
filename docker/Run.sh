@@ -12,7 +12,6 @@ VERSION=$(node -p "require('./package.json').version")
 echo "MeNote v${VERSION} 启动中..."
 
 # 恢复配置文件
-fi
 [ ! -f config/app.js ] && cp config.demo/app.js config/app.js
 [ ! -f config/db.js ] && cp config.demo/db.js config/db.js
 [ ! -f config/routes.js ] && cp config.demo/routes.js config/routes.js
