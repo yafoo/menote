@@ -16,7 +16,7 @@
   "license": "MIT",
   "dependencies": {
     "@number0/iroh": "^1.1.0",
-    "jj.js": "^1.2.0",
+    "jj.js": "^1.2.1",
     "qrcode": "^1.5.4",
     "sqlite3": "^6.0.1"
   },
