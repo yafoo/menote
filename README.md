@@ -92,7 +92,7 @@ docker compose up -d
 飞牛 NAS 支持 Docker Compose 应用市场。在 FPK 中搜索「MeNote」或手动导入上述 `docker-compose.yml`：
 
 1. **新建应用** → 选择「Docker Compose」→ 粘贴上方 YAML 内容
-2. **设置存储路径**：将 `./data` 和 `./upload` 映射到 NAS 上的持久化目录（如 `/volume1/docker/menote`）
+2. **设置存储路径**：将 `./config`、`./data` 和 `./upload` 映射到 NAS 上的持久化目录（如 `/volume1/docker/menote`）
 3. **启动应用**，浏览器访问 `http://NAS_IP:3107`
 
 首次访问会进入安装向导，按提示设置管理员账号即可。
@@ -175,8 +175,9 @@ MeNote 内置 P2P 隧道功能，允许手机/外网直接访问家里电脑上�
 ### 配对流程
 
 1. 电脑端：管理后台 → P2P 管理 → 生成配对二维码
-2. 手机端：打开 MeNote App → 扫码配对
-3. 配对成功后，手机可通过 QUIC 隧道直接访问电脑端服务
+2. 手机端：打开 MeNote App → 扫码配对，点击“启动隧道”
+3. 电脑端：手机端首次启动隧道后，电脑端会弹出授权窗口，设置个名字，点击授权
+4. 等到配对连接成功后，手机端点击“打开MeNote”，可通过 QUIC 隧道直接访问电脑端服务
 
 ### 技术细节
 
