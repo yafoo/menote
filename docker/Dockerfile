@@ -22,6 +22,8 @@ COPY . .
 
 # HTTP（Web/管理/API）；P2P 走 iroh relay+打洞，无需开放入站端口
 EXPOSE 3107
+# 配置文件
+VOLUME /menote/config
 # 数据库 + P2P 节点密钥/白名单
 VOLUME /menote/data
 # 用户上传的附件

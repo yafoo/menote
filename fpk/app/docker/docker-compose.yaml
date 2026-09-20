@@ -10,6 +10,7 @@ services:
     volumes:
       # TRIM_DATA_SHARE_PATHS 指向 config/resource 声明的 menote 共享目录
       # 容器内分别挂到数据库/密钥目录与上传附件目录
+      - "${TRIM_DATA_SHARE_PATHS}/config:/menote/config"
       - "${TRIM_DATA_SHARE_PATHS}/data:/menote/data"
       - "${TRIM_DATA_SHARE_PATHS}/upload:/menote/public/upload"
     environment:

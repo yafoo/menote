@@ -49,6 +49,7 @@ npm start
 docker run -d \
   --name menote \
   -p 3107:3107 \
+  -v $(pwd)/config:/menote/config \
   -v $(pwd)/data:/menote/data \
   -v $(pwd)/upload:/menote/public/upload \
   yafoo/menote:latest
@@ -73,6 +74,7 @@ services:
     ports:
       - "3107:3107"
     volumes:
+      - ./config:/menote/config
       - ./data:/menote/data
       - ./upload:/menote/public/upload
     environment:
