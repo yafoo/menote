@@ -50,7 +50,7 @@
             btn.textContent = '登录中…';
             tip.textContent = '';
             try {
-                var res = await fetch('/admin/login', {
+                var res = await fetch('/admin/login?is_ajax=1', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',

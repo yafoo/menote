@@ -18,7 +18,8 @@ class User extends Model {
             const updateData = {username: data.username};
             if(data.password) {
                 updateData.salt = this.randomString(8);
-                updateData.password = this.passmd5(data.password, data.salt);
+                updateData.password = this.passmd5(data.password, updateData.salt);
+                updateData.is_lock = -5;
             }
             return await this.db.where({id: data.id}).update(updateData);
         } else {
