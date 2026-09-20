@@ -11,16 +11,7 @@ VERSION=$(node -p "require('./package.json').version")
 
 echo "MeNote v${VERSION} 启动中..."
 
-# 恢复安装锁（镜像内不带锁，此处依据持久卷状态重建）
-if [ ! -f "$LOCK_FILE" ] && [ -f "data/menote.db" ]; then
-  echo "检测到已有数据库但安装锁丢失（容器重建），恢复安装锁"
-  cat > "$LOCK_FILE" << EOF
-// 本文件标识系统已安装，不可删除。
-module.exports = {
-    install: true,
-    version: '${VERSION}'
-};
-EOF
+# 恢复配置文件
 fi
 [ ! -f config/app.js ] && cp config.demo/app.js config/app.js
 [ ! -f config/db.js ] && cp config.demo/db.js config/db.js
