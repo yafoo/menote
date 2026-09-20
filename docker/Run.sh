@@ -22,6 +22,10 @@ module.exports = {
 };
 EOF
 fi
+[ ! -f config/app.js ] && cp config.demo/app.js config/app.js
+[ ! -f config/db.js ] && cp config.demo/db.js config/db.js
+[ ! -f config/routes.js ] && cp config.demo/routes.js config/routes.js
+[ ! -f config/view.js ] && cp config.demo/view.js config/view.js
 
 # 依赖自检：镜像应已带 node_modules，卷误挂覆盖或手动调试时兜底重装
 if [ ! -d "node_modules/jj.js" ]; then

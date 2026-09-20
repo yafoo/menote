@@ -19,6 +19,7 @@ WORKDIR /menote
 COPY --from=deps /menote/node_modules ./node_modules
 # 源码 + 前端静态资源（public/ 已随仓库分发）+ docker/Run.sh 一并带入
 COPY . .
+COPY config config.demo
 
 # HTTP（Web/管理/API）；P2P 走 iroh relay+打洞，无需开放入站端口
 EXPOSE 3107
