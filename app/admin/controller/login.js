@@ -2,6 +2,10 @@ const {Controller} = require('jj.js');
 
 class Login extends Controller
 {
+    middleware = [
+        '/install/check'
+    ];
+
     async index() {
         if(this.$request.isPost()) {
             const username = this.$request.post('username');
