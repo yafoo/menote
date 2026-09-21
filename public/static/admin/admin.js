@@ -1814,7 +1814,7 @@ const Workspace = {
                 <div class="unsaved-tip">笔记「{{ store.unsavedNoteTitle }}」有未保存的修改，是否保存？</div>
                 <template #footer>
                     <el-button @click="store.cancelUnsavedClose()">取消</el-button>
-                    <el-button @click="store.discardUnsavedClose()">放弃</el>
+                    <el-button @click="store.discardUnsavedClose()">放弃</el-button>
                     <el-button type="primary" @click="store.saveUnsavedClose()">保存</el-button>
                 </template>
             </el-dialog>
