@@ -23,12 +23,18 @@ async function request(url, options = {}) {
             const now = Date.now();
             if(now - lastNetworkErrorAt > 5000) {  // 5s 节流
                 lastNetworkErrorAt = now;
-                if(typeof ElMessage !== 'undefined') {
-                    ElMessage.warning('网络连接已断开，正在自动重连…');
-                }
+                ElementPlus.ElMessage.warning('网络连接已断开，正在自动重连…');
             }
         }
         const text = await res.text();
+        // 403 代理不可用：P2P 隧道断开时后端返回的码
+        if(res.status === 403) {
+            if(text.includes('FN Connect')) {
+                ElementPlus.ElMessage.warning('FN Connect 暂无权限访问该服务，请检查飞牛登录是否已过期');
+            } else {
+                ElementPlus.ElMessage.warning('403 Forbidden');
+            }
+        }
         try {
             return JSON.parse(text);
         } catch(e) {
@@ -40,9 +46,7 @@ async function request(url, options = {}) {
         const now = Date.now();
         if(now - lastNetworkErrorAt > 5000) {
             lastNetworkErrorAt = now;
-            if(typeof ElMessage !== 'undefined') {
-                ElMessage.error('无法连接服务器，请检查网络');
-            }
+            ElementPlus.ElMessage.error('无法连接服务器，请检查网络');
         }
         return { state: 0, msg: '网络错误' };
     }
@@ -240,6 +244,8 @@ const store = reactive({
                 this.notes = data.data.list || [];
                 this.notesTotal = data.data.total || 0;
                 this.notesPage = page;
+            } else {
+                ElementPlus.ElMessage.error(data.msg || '加载笔记列表失败');
             }
         } catch(e) {
             console.error('加载笔记列表失败', e);
@@ -280,6 +286,8 @@ const store = reactive({
                 }
                 this.notesCache[id] = data.data;
                 return data.data;
+            } else {
+                ElementPlus.ElMessage.error(data.msg || '加载笔记失败');
             }
         } catch(e) {
             console.error('加载笔记失败', e);
