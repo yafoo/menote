@@ -1,4 +1,6 @@
 const Base = require('./base');
+const fs = require('fs');
+const {join} = require('path');
 
 class Note extends Base
 {
@@ -82,14 +84,71 @@ class Note extends Base
         if(!id) return this.$error('缺少id参数');
 
         try {
+            // 先取出附件清单，事务提交成功后再物理删文件——
+            // 反过来做的话，事务一旦回滚，磁盘文件已经没了，笔记还在但附件全 404
+            const attaches = await this.$db.table('attach')
+                .where({note_id: id})
+                .field('filepath')
+                .select();
+
             await this.$db.startTrans(async () => {
+                await this.$db.table('attach').delete({note_id: id});
                 await this.$db.table('note').delete({id});
                 await this.$db.table('note_link').delete({source_id: id});
                 await this.$db.table('note_link').delete({target_id: id});
             });
+
+            await this.removeAttachFiles(attaches);
             this.$success('删除成功');
         } catch(e) {
             this.$error('删除失败：' + e.message);
+        }
+    }
+
+    /**
+     * 物理删除附件文件。两种情况不删磁盘文件，只删 attach 表记录：
+     * 1. attach 表还有其他记录指向同一路径（同一文件被多篇笔记上传/引用）
+     * 2. 其他笔记的正文里还直接写着这个 URL（文件归属那篇笔记已删，但别处还在用）
+     * 第 2 种情况不补数据：Markdown 正文里的 URL 只是文本，没有引用关系可维护。
+     */
+    async removeAttachFiles(attaches) {
+        if(!attaches || attaches.length === 0) return;
+
+        const uploadDir = join(this.$config.app.static_dir.static_dir, 'upload');
+
+        for(const attach of attaches) {
+            if(!attach.filepath) continue;
+
+            // 本笔记的 attach 记录已在事务里删掉，这里查到的一定是别的记录在引用
+            const remain = await this.$db.table('attach')
+                .where({filepath: attach.filepath}).count();
+            if(remain > 0) {
+                this.$logger.info('附件被其他记录引用，仅删除记录: ' + attach.filepath);
+                continue;
+            }
+
+            // 正文里还引用着就保留磁盘文件（LIKE 通配符只会让匹配更宽松，
+            // 误判方向是"多保留"而不是"多删除"，安全）
+            const referenced = await this.$db.table('note')
+                .where({content: ['like', '%' + attach.filepath + '%']})
+                .count();
+            if(referenced > 0) {
+                this.$logger.info('附件被其他笔记正文引用，仅删除记录: ' + attach.filepath);
+                continue;
+            }
+
+            // filepath 形如 /upload/2026/0923/xxx.png，去掉 /upload/ 前缀拼成磁盘路径
+            const rel = attach.filepath.startsWith('/upload/')
+                ? attach.filepath.substring('/upload/'.length)
+                : attach.filepath.replace(/^\//, '');
+            const fullpath = join(uploadDir, rel);
+
+            try {
+                await fs.promises.unlink(fullpath);
+            } catch(e) {
+                // 文件不存在或删不掉不阻断删除主流程，只记日志
+                this.$logger.warning('删除附件文件失败: ' + fullpath + ' (' + e.message + ')');
+            }
         }
     }
 
