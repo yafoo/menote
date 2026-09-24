@@ -7,6 +7,8 @@ import android.util.Size
 import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.SystemBarStyle
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
@@ -54,6 +56,12 @@ class ScanActivity : AppCompatActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // 相机预览本就该铺满全屏，所以只把提示文字推进安全区（见下方 applySystemBarPadding）。
+        // 预览恒为深色，系统栏图标固定用浅色，避免浅色系统主题下白底黑字盖在黑画面上看不清
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         super.onCreate(savedInstanceState)
 
         val root = FrameLayout(this).apply {
@@ -79,6 +87,10 @@ class ScanActivity : AppCompatActivity() {
             FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = 0 })
         setContentView(root)
+
+        // 提示文字下移一个状态栏高度（半透明底同时充当状态栏遮罩，保证文字可读）；
+        // horizontal 应对横屏侧边刘海，相机预览本身仍铺满全屏
+        statusText.applySystemBarPadding(top = true, bottom = false, horizontal = true)
 
         reader = MultiFormatReader().apply {
             setHints(mapOf(

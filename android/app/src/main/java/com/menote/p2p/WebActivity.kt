@@ -10,6 +10,8 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 
@@ -51,10 +53,26 @@ class WebActivity : AppCompatActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Android 15+ 强制 edge-to-edge（targetSdk 35），显式开启以统一各版本行为
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
+        // 外层容器承担系统栏安全区 padding，WebView 铺满容器内容区。
+        // 这样 SPA 的 100vh 自动等于「状态栏以下、导航栏以上」的可视高度，
+        // 后台顶部的 mobile-header（48dp 菜单/保存按钮）不会再被状态栏压住。
+        // 页面本身零改动，也不需要 safe-area-inset CSS。
+        // ime = 键盘弹出时收缩 WebView（而不是盖住编辑器），配合 manifest 的 adjustResize
+        val container = FrameLayout(this)
         webView = WebView(this)
-        setContentView(webView)
+        container.addView(
+            webView,
+            FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+        setContentView(container)
+        container.applySystemBarPadding(horizontal = true, ime = true)
 
         // 允许明文 http（本机回环代理）
         webView.settings.apply {

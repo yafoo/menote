@@ -32,7 +32,7 @@ MeNote 是一个轻量级个人笔记知识库系统，支持 Markdown 笔记、
 - **路由模式**：后台 hash（`#/admin/...`）；前台 **history**（要保住 `/note/123.html` 这类干净 URL）
 
 ### Android 端
-- **工程路径**：`android/`（包名 `com.menote.p2p`，当前 v2.3 = versionCode 13）
+- **工程路径**：`android/`（包名 `com.menote.p2p`，当前 v1.1.0 = versionCode 14）
 - **技术**：Kotlin + WebView + iroh-android FFI
 - **构建**：Gradle 8.14.3 / AGP 8.10.1 / Kotlin 2.2.21 / compileSdk 35 / minSdk 29
 - **JDK**：需要 JDK 20（`D:\Program Files\Java\jdk-20`，PATH 默认 JDK 8 不够）
@@ -389,6 +389,11 @@ admin 显示：本节点 ID 主显前 10 位短 ID（`shortNodeId` computed）�
 - `ScanActivity.kt`：zxing-core PlanarYUVLuminanceSource + CameraX ImageAnalysis；结果 hex(64) 自动转 base32(52) 回填输入框并存 pref
 - `WebActivity.kt`：cookie 修复 = `CookieManager.flush()` 三时机（onPageFinished/onPause/onDestroy）；文件上传 = `onShowFileChooser` 桥（默认 WebChromeClient 不实现文件选择，编辑器上传点击无反应的根因）
 - 登录态机制：cookie 作用域是域不是端口——`127.0.0.1:8080` 与 `127.0.0.1:3107` 对 cookie 是同一站点，换端口登录态照常带
+- **系统栏安全区（2026-09-24 修）**：`targetSdk = 35` 起 Android 15+ **强制 edge-to-edge**，窗口铺满全屏、状态栏透明悬浮，内容默认钻到状态栏底下——症状是新机型上标题行/按钮/后台顶部 mobile-header 被状态栏盖住点不到。Android 16 起 `windowOptOutEdgeToEdgeEnforcement` 逃生舱被移除，只能正面适配。
+  做法：三个 Activity 都先 `enableEdgeToEdge()`，再用 `Insets.kt` 的 `View.applySystemBarPadding()` 把 `systemBars() or displayCutout()` 的 inset **加在原有 padding 之上**（`MainActivity` 给根布局、`WebActivity` 给包住 WebView 的 FrameLayout、`ScanActivity` 只给提示文字以保住全屏相机预览）。listener 里必须原样 `return insets` 不 consume。
+  两个要点：① WebView 场景用**外层容器 padding**（不是给 WebView 设 padding），这样 SPA 的 `100vh` 自动等于安全区高度，**页面侧零改动、不需要 `env(safe-area-inset-*)`**；② `ScanActivity` 用 `SystemBarStyle.dark(TRANSPARENT)` 固定浅色系统栏图标，因为相机预览恒为深色，跟随系统浅色主题会出现黑图标盖黑画面。
+  两个配套项别漏：① `horizontal = true`——横屏时刘海在侧边、三键导航栏跑到右侧，只避让上下不够；竖屏下这两个方向的 inset 恒为 0 所以无副作用。② **`ime = true` + manifest 的 `windowSoftInputMode="adjustResize"`**——`enableEdgeToEdge()` 关掉了 decorFitsSystemWindows，窗口不再随键盘自动缩小，不显式消费 `ime()` inset 的话键盘会盖住 WebView 里的编辑器和配置页日志面板（**这是开启 edge-to-edge 后相对旧版本新增的回归，Android 14 及以下同样中招**）。
+  **新增 Activity 别忘了这一套**，否则同样中招。
 
 ### 测试隔离（必须遵守）
 **测 P2P 一律用 `P2P.init(app, {dataDir: 临时目录})`**（v1.8 后支持）——之前测试脚本直接跑、清理代码误删了真实 `data/p2p-key.bin`/`p2p-allow.json`，导致用户已配对数据丢失。教训：涉及真实数据文件的测试，永远先设隔离目录再跑。
@@ -428,6 +433,61 @@ cd D:\wwwroot\zzz\menote\android
 发版改 `app/build.gradle.kts` 的 `versionCode`/`versionName` 同步升。
 
 签名自动读 android 目录下 `keystore.properties`（指向 `menote-p2p.jks`，已 gitignore），无需手动参数。
+
+### Android 界面改动怎么验证（本机可跑模拟器）
+本机 SDK 已有 4 个 AVD：`Pixel_6` / `Pixel_8a_API_35`（均 API 35）、`Pixel_6_2`（API 31）。**API 35 正好是强制 edge-to-edge 的场景**，改窗口/inset/布局类代码一定要在它上面过一遍，别只看编译通过。
+
+```bash
+# 1. 正式包只有 arm64-v8a，模拟器是 x86_64 装不上 —— 临时把 abiFilters 加上 x86_64
+#    （iroh 与 jna 的 aar 都自带 x86_64 .so，所以能真跑），走 assembleDebug 更快
+#    改 build.gradle.kts → ndk { abiFilters += listOf("arm64-v8a", "x86_64") }
+#    ★ 验完必须改回只留 arm64-v8a 并重新 assembleRelease，否则 APK 白胖 7MB
+
+# 2. 起模拟器（无窗口 + 软件渲染，服务器环境最稳）
+emulator.exe -avd Pixel_6 -no-snapshot -no-boot-anim -no-audio -no-window -gpu swiftshader_indirect
+adb wait-for-device   # 之后轮询 getprop sys.boot_completed 等 1
+
+# 3. 装 + 跑（先 grant，否则权限弹窗挡住界面）
+adb install -r -t app/build/outputs/apk/debug/app-debug.apk
+adb shell pm grant com.menote.p2p android.permission.POST_NOTIFICATIONS
+adb shell am start -n com.menote.p2p/.MainActivity
+
+# 4. 量几何（别靠肉眼看截图）
+adb shell uiautomator dump /sdcard/ui.xml && adb pull /sdcard/ui.xml .
+adb shell dumpsys window | grep -E "type=(statusBars|navigationBars|ime)"
+```
+
+坑：
+- **模拟器自带蓝牙会反复崩**，弹框挡住界面 → `adb shell settings put global hide_error_dialogs 1`（验完记得改回 0，设置会存进 AVD 的 userdata）
+- **`WebActivity` / `ScanActivity` 都是 `exported="false"`，`am start` 起不来**（SecurityException）→ 只能走 UI：`adb shell input tap x y` + `adb shell input text ...`
+- **uiautomator 第一次 dump 可能拿到 inset 还没重排完的中间态**（底部 padding 会少一截，看着像没生效），**多 dump 一次再下结论**
+- 参照值：Pixel 6 API 35 密度 420 → 16dp = 42px、状态栏 128px、手势导航栏 63px
+
+2026-09-24 在 Pixel 6 / API 35 上的实测基线（修完 inset 后应当长这样）：
+
+| 界面 | 控件 | 实测 bounds | 说明 |
+|---|---|---|---|
+| `MainActivity` | `@id/root` | `[0,0][1080,2400]` | 根布局仍铺满全屏（edge-to-edge 生效） |
+| `MainActivity` | 标题 `MeNote` | `[42,170]…` | 170 = 42(16dp) + 128(状态栏) ✓ |
+| `MainActivity` | `@id/logScroll` | `…[1038,2295]` | 2295 = 2400 − 42 − 63(导航栏) ✓ |
+| `WebActivity` | `WebView` | `[0,128][1080,2337]` | 视口恰好等于安全区 → SPA 的 `100vh` 正确 |
+| `ScanActivity` | 提示文字 | 文字基线在状态栏下方 | 相机预览仍全屏（黑底 + 浅色系统栏图标） |
+
+**API 31（`Pixel_6_2`，3 键导航）实测**——几何与 API 35 不同，别拿一套数字套两个版本：
+
+| 量 | API 35（手势导航） | API 31（3 键导航） |
+|---|---|---|
+| 状态栏 | 128px（48.8dp，含挖孔） | **63px（24dp）** |
+| 导航栏 | 63px（24dp） | **126px（48dp）** |
+| 标题 `MeNote` top | 170 = 42 + 128 | **105 = 42 + 63** |
+| `logScroll` bottom | 2295 = 2400 − 42 − 63 | **2232 = 2400 − 42 − 126** |
+| 键盘弹出后 `logScroll` bottom | — | **1491 = 2400 − 42 − 867** |
+
+两个新坑：
+- **API 31 的 `uiautomator` 会把根布局 bounds 裁到"可见区"**（报 `[0,0][1080,2274]` 而不是真实的 2400）→ 别据此以为窗口没铺满；用**子 View 的位置**反推 padding 才靠谱
+- **IME inset 有两个不同的数**：`ime()` 给的是 IME 完整 frame 高度（867），而 `dumpsys` 里的 `mImeHeight` 是 741。消费 `ime()` 时以 867 为准（键盘顶边 = 2400 − 867 = 1533，日志区底边 1491 = 1533 − 42，正好压在键盘上方 16dp）
+
+**关于 ANR 的结论（2026-09-24 查清）**：模拟器上看到过 `MeNote isn't responding`，读 `/data/anr/` 的 trace（需先 `adb root`，google_apis 镜像可以）后确认 **7 份 ANR 全是 SystemUI / GMS / LatinIME / 蓝牙 这些系统应用，`grep com.menote.p2p` 命中 0**——是慢速模拟器的通病，不是 App 缺陷。App 侧也本来就干净：`IrohProxy.start()` 全程跑在 `Dispatchers.IO`，主线程只做 `startForeground` 和建通知。
 
 ### 系统环境
 - Windows + PowerShell 5.1：无 `&&`（用 `;`）；写文件勿用 `Set-Content`/`>`（ANSI/UTF-16 编码坑），一律用 octo `write_file`/`edit_file`

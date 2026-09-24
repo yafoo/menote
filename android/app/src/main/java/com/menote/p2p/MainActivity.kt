@@ -3,11 +3,13 @@ package com.menote.p2p
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -96,8 +98,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Android 15+ 强制 edge-to-edge（targetSdk 35），显式开启以统一各版本行为
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // 根布局避开状态栏/导航栏：否则新机型上标题行与按钮会被状态栏盖住点不到。
+        // ime = 键盘弹出时把日志面板顶上去（配合 manifest 的 adjustResize）
+        findViewById<View>(R.id.root).applySystemBarPadding(horizontal = true, ime = true)
 
         computer.iroh.IrohAndroid.installAndroidContext(applicationContext)
 

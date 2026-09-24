@@ -13,8 +13,8 @@ android {
         applicationId = "com.menote.p2p"
         minSdk = 29
         targetSdk = 35
-        versionCode = 13
-        versionName = "1.0.0"
+        versionCode = 14
+        versionName = "1.1.0"
 
         // 只打真机需要的 ABI：iroh 的 Rust QUIC 库单 ABI 就有 9~15MB，
         // 全 ABI 打包会让 APK 白背 3 份。需要模拟器调试时临时加回 x86_64。

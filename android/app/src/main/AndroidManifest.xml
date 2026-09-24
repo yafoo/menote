@@ -18,10 +18,14 @@
         android:theme="@style/Theme.MeNote"
         android:usesCleartextTraffic="true">
 
+        <!-- windowSoftInputMode=adjustResize 是 edge-to-edge 的配套项：
+             enableEdgeToEdge() 关掉了 decorFitsSystemWindows，窗口不再随键盘自动缩小，
+             必须显式消费 ime() inset（见 Insets.kt），否则键盘会直接盖住内容 -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|keyboardHidden">
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -31,7 +35,8 @@
         <activity
             android:name=".WebActivity"
             android:exported="false"
-            android:configChanges="orientation|screenSize|keyboardHidden" />
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".ScanActivity"
