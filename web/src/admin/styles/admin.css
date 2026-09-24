@@ -529,10 +529,6 @@ html, body {
     color: var(--el-color-primary);
 }
 
-.note-item-meta {
-    display: none;
-}
-
 /* ==================== Tabs ==================== */
 .tabs-container {
     display: flex;
@@ -654,6 +650,18 @@ html, body {
     min-height: 0;
 }
 
+/* NoteEditor 是异步组件（Vditor 懒加载），这是下载+初始化期间的 Suspense
+   fallback。跟 .note-editor 一样撑满剩余高度，否则加载时正文区会先塌成 0 再撑开 */
+.editor-loading {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    color: var(--el-text-color-secondary);
+}
+
 .editor-header {
     padding: 8px 12px;
     border-bottom: 1px solid var(--el-border-color-lighter);
@@ -766,61 +774,8 @@ html, body {
     border-color: var(--el-color-primary);
 }
 
-#vditor {
-    flex: 1;
-    min-height: 0;
-}
-
-/* Vditor 的暗色配色是靠 .vditor--dark 里一组 CSS 变量控制的，自带的是
-   GitHub Dark 那套（--panel-background-color: #24292e，偏蓝灰）。
-   压在青瓷暗色（#121817，偏青绿）的面板上像贴了块补丁。
-   这里只换变量值、不逐个元素覆盖，Vditor 自己的层次关系（面板 / 文本域 / 工具栏）
-   保持原样。特异性上 html.dark .vditor 是 (0,2,0)，压得过 .vditor--dark 的 (0,1,0) */
-html.dark .vditor {
-    --panel-background-color: var(--el-bg-color-overlay);
-    --textarea-background-color: var(--el-bg-color);
-    --textarea-text-color: var(--el-text-color-primary);
-    --toolbar-icon-color: var(--el-text-color-regular);
-    --border-color: var(--el-border-color);
-}
-
-/* 代码块底色。
-   Vditor 在 wysiwyg 模式下代码块有**两层**：可见的 .vditor-wysiwyg__pre（其中的 code
-   没有 .hljs class，落在 content-theme 里 code:not(.hljs) 那条规则上，是半透明蓝底
-   rgba(66,133,244,.36)）和隐藏的预览层（code 带 .hljs，底色来自 hljs 主题）。
-   两层都要覆盖，否则编辑时看到蓝底、切到预览又变另一个色。
-   不加 html.dark 前缀——浅色下同样存在（可见层浅蓝、预览层浅灰） */
-.vditor .vditor-wysiwyg__pre code:not(.hljs):not(.highlight-chroma),
-.vditor .vditor-reset pre code:not(.hljs):not(.highlight-chroma),
-.vditor .hljs {
-    background-color: var(--el-fill-color-light);
-}
-
-/* 行内代码：Vditor 默认也是那个半透明蓝，换成 primary 最浅档——
-   浅色下是淡青（#e6f2f0），暗色下是深青（#15201e），两套主题都在青瓷色系里 */
-.vditor .vditor-reset code:not(.hljs):not(.highlight-chroma) {
-    background-color: var(--el-color-primary-light-9);
-}
-
-/* Vditor 样式调整 */
-.vditor {
-    border: none !important;
-}
-
-.vditor-toolbar {
-    border-bottom: 1px solid var(--el-border-color-lighter) !important;
-    background: var(--el-fill-color-lighter) !important;
-    padding: 4px 8px !important;
-}
-
-/* 让编辑区域占满整个宽度 */
-.vditor-ir__editor,
-.vditor-wysiwyg__editor,
-.vditor-sv {
-    width: 100% !important;
-    max-width: 100% !important;
-    box-sizing: border-box !important;
-}
+/* Vditor 的基础样式和针对它的覆盖规则都搬进了 NoteEditor.vue
+   （随该组件一起懒加载，同时保证覆盖规则排在 Vditor 自带样式之后） */
 
 /* ==================== 图标选择器 ==================== */
 .icon-selector {
@@ -931,22 +886,12 @@ html.dark .vditor {
 }
 
 /* ==================== 空状态 ==================== */
+/* 这里原本有两个同名分节、各写了一遍 .empty-state（前者只贡献 flex-direction，
+   后者贡献 align/justify，靠层叠凑出来的效果），已合并成一条。
+   同处的 .empty-header 没有任何模板在用，一并删掉 */
 .empty-state {
     display: flex;
     flex-direction: column;
-    height: 100%;
-}
-
-.empty-header {
-    display: flex;
-    justify-content: flex-end;
-    padding: 8px 12px;
-    border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-/* ==================== 空状态 ==================== */
-.empty-state {
-    display: flex;
     align-items: center;
     justify-content: center;
     height: 100%;
@@ -1024,124 +969,13 @@ html.dark .vditor {
 }
 
 /* ==================== 站点设置页面 ==================== */
-.settings-page {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    background: var(--el-bg-color);
-}
-
-.settings-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-}
-
-.settings-form {
-    max-width: 600px;
-}
-
-.settings-form .el-form-item {
-    margin-bottom: 20px;
-}
-
-/* 枚举型配置项（主题等）：下拉只有几个选项，不必占满整行 */
-.settings-select {
-    width: 240px;
-}
-
-.form-tips {
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-    margin-top: 4px;
-    line-height: 1.6;
-}
+/* .settings-page / .settings-content / .settings-form / .settings-select / .form-tips
+   已随组件搬到 SiteSettings.vue 的 <style> 块（含它那段移动端覆盖） */
 
 /* ==================== Token 管理页面 ==================== */
-.token-page {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    background: var(--el-bg-color);
-}
-
-.token-list {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-}
-
-.token-empty {
-    text-align: center;
-    padding: 60px 0;
-    color: var(--el-text-color-secondary);
-    font-size: 14px;
-}
-
-.token-value {
-    font-family: monospace;
-    font-size: 12px;
-    color: var(--el-text-color-regular);
-    margin-right: 8px;
-}
-
-/* Token 权限标签 */
-.token-perm-tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px;
-}
-
-.token-perm-tag {
-    margin-right: 2px;
-}
-
-/* Token 弹窗权限分组勾选 */
-.perm-groups {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.perm-group {
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 4px;
-    padding: 8px 10px;
-}
-
-.perm-group-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 6px;
-    font-size: 13px;
-    color: var(--el-text-color-regular);
-    font-weight: 500;
-}
-
-.perm-group-all {
-    height: auto;
-    font-size: 12px;
-    font-weight: 400;
-}
-
-.perm-group-items {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px 12px;
-}
-
-.perm-group-items .el-checkbox {
-    margin-right: 0;
-}
-
-.keep-expire-check {
-    height: auto;
-    margin-top: 6px;
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-}
+/* .token-page / .token-list / .token-empty / .token-value / .token-perm-tags /
+   .token-perm-tag / .perm-groups / .perm-group* / .keep-expire-check
+   已随组件搬到 TokenManage.vue 的 <style> 块（含它那段移动端覆盖） */
 
 /* ==================== 底部导航按钮 ==================== */
 /* 一排只留「主题 / 前台 / 退出 / 更多」四个，其余入口收进「更多」的弹出菜单。
@@ -1213,33 +1047,9 @@ html.dark .vditor {
 }
 
 /* ==================== 账户信息页面 ==================== */
-.profile-page {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    background: var(--el-bg-color);
-}
-
-.profile-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 24px;
-}
-
-.profile-form {
-    max-width: 480px;
-}
-
-.profile-form .el-form-item {
-    margin-bottom: 20px;
-}
-
-.profile-logout {
-    margin-top: 32px;
-    padding-top: 16px;
-    border-top: 1px solid var(--el-border-color-extra-light);
-    max-width: 480px;
-}
+/* .profile-page / .profile-content / .profile-form 已随组件搬到 UserProfile.vue
+   的 <style> 块（含它那段移动端覆盖）。
+   同处的 .profile-logout 早已没有模板在用，一并删掉 */
 
 /* 表格横向滚动容器（手机端） */
 .table-scroll-wrapper {
@@ -1368,277 +1178,12 @@ html.dark .vditor {
 }
 
 /* ==================== 知识图谱页面 ==================== */
-.graph-page {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    background: var(--el-bg-color-page);
-}
-
-.graph-content {
-    flex: 1;
-    max-width: 1100px;
-    width: 100%;
-    margin: 0 auto;
-    padding: 16px;
-    box-sizing: border-box;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-
-.graph-network-box {
-    flex: 1;
-    min-height: 400px;
-    background: var(--el-bg-color);
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 8px;
-}
-
-.graph-info {
-    margin-top: 10px;
-    font-size: 13px;
-    color: var(--el-text-color-secondary);
-    text-align: center;
-}
+/* .graph-page / .graph-content / .graph-network-box / .graph-info
+   已随组件搬到 GraphView.vue 的 <style> 块（该页没有移动端覆盖） */
 
 /* ==================== P2P 管理页面 ==================== */
-.p2p-page {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    background: var(--el-bg-color-page);
-}
-
-.p2p-content {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px;
-    max-width: 960px;
-    width: 100%;
-    margin: 0 auto;
-    box-sizing: border-box;
-}
-
-.p2p-node-card {
-    background: var(--el-bg-color);
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 8px;
-    padding: 14px 16px;
-    margin-bottom: 20px;
-}
-
-.p2p-node-id-row {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    flex-wrap: wrap;
-}
-
-.p2p-node-id-main {
-    font-family: monospace;
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--el-text-color-primary);
-    letter-spacing: 0.5px;
-}
-
-.p2p-node-id-toggle {
-    font-size: 12px;
-    color: var(--el-color-primary);
-    cursor: pointer;
-    user-select: none;
-    margin-left: 8px;
-}
-
-.p2p-node-id-actions {
-    display: flex;
-    gap: 4px;
-    margin-top: 8px;
-}
-
-.p2p-node-id {
-    font-family: monospace;
-    font-size: 14px;
-    color: var(--el-text-color-primary);
-    word-break: break-all;
-}
-
-.p2p-node-id.offline {
-    color: var(--el-text-color-secondary);
-}
-
-.p2p-section-title {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--el-text-color-primary);
-    margin: 16px 0 10px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.p2p-pending-section {
-    background: var(--el-color-warning-light-9);
-    border: 1px solid var(--el-color-warning-light-5);
-    border-radius: 8px;
-    padding: 12px 14px;
-    margin-bottom: 8px;
-}
-
-.p2p-pending-section .p2p-section-title {
-    margin-top: 0;
-}
-
-.p2p-pending-item {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 8px 0;
-    border-bottom: 1px dashed var(--el-border-color);
-    flex-wrap: wrap;
-}
-
-.p2p-pending-item:last-child {
-    border-bottom: none;
-}
-
-.p2p-pending-info {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-
-.p2p-pending-id {
-    font-family: monospace;
-    font-size: 12px;
-    color: var(--el-text-color-primary);
-    word-break: break-all;
-}
-
-.p2p-pending-time {
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-}
-
-.p2p-pending-actions {
-    display: flex;
-    gap: 8px;
-    flex-shrink: 0;
-}
-
-.p2p-peer-id {
-    font-family: monospace;
-    font-size: 12px;
-    word-break: break-all;
-}
-
-/* 表格内节点 ID 可点击复制 */
-.p2p-peer-id-copy {
-    cursor: pointer;
-    color: var(--el-color-primary);
-}
-
-.p2p-peer-id-copy:hover {
-    text-decoration: underline;
-}
-
-.p2p-unnamed {
-    color: var(--el-text-color-secondary);
-}
-
-.p2p-empty {
-    text-align: center;
-    color: var(--el-text-color-secondary);
-    padding: 30px 0;
-    font-size: 13px;
-}
-
-.p2p-manual-add {
-    margin-top: 24px;
-}
-
-.p2p-manual-row {
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-    align-items: center;
-}
-
-/* 同行三列：名称定宽窄列、节点 ID 弹性填充、按钮自然宽 */
-.p2p-manual-row .p2p-manual-name {
-    width: 200px;
-    flex-shrink: 0;
-}
-
-.p2p-manual-row .p2p-manual-id {
-    flex: 1;
-    min-width: 220px;
-}
-
-.p2p-manual-row .p2p-manual-btn {
-    flex-shrink: 0;
-}
-
-.p2p-qrcode-body {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 0;
-    min-height: 200px;
-    justify-content: center;
-}
-
-.p2p-qrcode-img {
-    width: 240px;
-    height: 240px;
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 6px;
-}
-
-.p2p-qrcode-id {
-    font-family: monospace;
-    font-size: 12px;
-    color: var(--el-text-color-regular);
-    word-break: break-all;
-    text-align: center;
-    padding: 0 12px;
-}
-
-.p2p-qrcode-tip {
-    font-size: 12px;
-    color: var(--el-text-color-secondary);
-}
-
-.p2p-authorize-body p {
-    margin: 0 0 8px;
-    font-size: 14px;
-}
-
-.p2p-authorize-id {
-    font-family: monospace;
-    font-size: 12px;
-    background: var(--el-bg-color-page);
-    border-radius: 6px;
-    padding: 10px 12px;
-    word-break: break-all;
-    color: var(--el-text-color-primary);
-}
-
-.p2p-authorize-tip {
-    color: var(--el-text-color-secondary);
-    font-size: 12px !important;
-}
-
-/* 自绘二维码图标（嵌 el-icon 内的 svg 直接铺满） */
-.p2p-icon-qr svg {
-    width: 1em;
-    height: 1em;
-}
-
+/* 全部 .p2p-* 规则已随组件搬到 P2pManage.vue 的 <style> 块（含它那段移动端覆盖）。
+   这里只留标记，避免后来的人以为是漏搬 */
 /* 手机端适配：单栏视图切换 */
 @media (max-width: 768px) {
     .mobile-header {
@@ -1819,17 +1364,7 @@ html.dark .vditor {
         display: inline-flex;
     }
 
-    /* 折叠态：隐藏 Vditor 工具栏（点击 ℹ️ 展开） */
-    .note-editor.meta-collapsed .vditor-toolbar {
-        display: none !important;
-    }
-
-    /* 移动端隐藏工具按钮 tooltip（触屏无悬浮意义且易被遮挡裁切） */
-    .vditor-toolbar .vditor-tip,
-    .vditor-tooltipped::before,
-    .vditor-tooltipped::after {
-        display: none !important;
-    }
+    /* Vditor 工具栏的移动端规则在 NoteEditor.vue 内（随组件懒加载） */
 
     .editor-meta {
         flex-wrap: wrap;
@@ -1844,20 +1379,6 @@ html.dark .vditor {
     .editor-meta .meta-item .el-select,
     .editor-meta .meta-item .el-input {
         width: 100% !important;
-    }
-
-    /* Vditor 工具栏横向滚动 */
-    .vditor-toolbar {
-        flex-wrap: nowrap !important;
-        -webkit-overflow-scrolling: touch;
-    }
-
-    .vditor-toolbar::-webkit-scrollbar {
-        display: none;
-    }
-
-    .vditor-toolbar__item {
-        padding: 0 2px !important;
     }
 
     /* 反向链接面板 */
@@ -1877,43 +1398,11 @@ html.dark .vditor {
         max-width: 88vw;
     }
 
-    /* 设置页 */
-    .settings-content {
-        padding: 16px 12px;
-    }
-
-    /* P2P 管理页手机适配 */
-    .p2p-content {
-        padding: 12px;
-    }
-
-    .p2p-manual-row {
-        flex-direction: column;
-        align-items: stretch;
-    }
-
-    .p2p-manual-row .p2p-manual-name,
-    .p2p-manual-row .p2p-manual-id,
-    .p2p-manual-row .p2p-manual-btn {
-        width: 100%;
-    }
-
-    .p2p-qrcode-img {
-        width: 200px;
-        height: 200px;
-    }
-
-    .settings-form {
-        max-width: none;
-    }
+    /* 设置页 / P2P 管理页 / Token 页的移动端覆盖，
+       已各自随组件搬到对应 .vue 的 <style> 块里 */
 
     .el-form-item__label {
         width: 70px !important;
-    }
-
-    /* Token 页 */
-    .token-list {
-        padding: 16px 12px;
     }
 
     /* 防误触：移动端隐藏行内小按钮（功能保留在 ··· 菜单中；
@@ -1951,15 +1440,6 @@ html.dark .vditor {
     .page-header-actions .el-button {
         padding: 8px;
         font-size: 18px;
-    }
-
-    .profile-content {
-        padding: 16px 12px;
-    }
-
-    .profile-form,
-    .profile-logout {
-        max-width: none;
     }
 
     /* 消息提示不超宽 */

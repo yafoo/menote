@@ -64,6 +64,16 @@ import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '@/admin/store/index.js';
 import { resolvedTheme } from '@/shared/theme.js';
 import Vditor from 'vditor';
+// Vditor 的样式表放在这里、而不是 main.js 的入口样式区：
+// 编辑器只占后台极小一部分使用时长（打开笔记才需要），但它光是 CSS 就有 8 kB gzip。
+// 放入口 = 每个打开后台的人（包括只看列表的）都要下载它。
+//
+// ⚠️ 覆盖顺序：本文件末尾的 <style> 块里有针对 .vditor 的覆盖规则，
+//    它必须排在 Vditor 自带样式**之后**。构建时 Vite 会按模块图顺序把两者
+//    拼进同一个 chunk CSS，SFC 的 <style> 块排在 script 里的 import 之后，
+//    顺序天然正确；但如果你把下面这行挪到别处（比如挪进入口样式区），
+//    覆盖规则就会跑到 Vditor 基础样式前面去，编辑器外观会变样。
+import 'vditor/dist/index.css';
 
 const vditor = ref(null);
 const metaExpanded = ref(false);
@@ -262,3 +272,103 @@ const openBacklink = (link) => {
     store.openNote(link.id);
 };
 </script>
+
+<!--
+    以下规则原本散落在 admin.css 的「笔记编辑器」章节和文件末尾的移动端
+    @media 块里。挪进组件内的原因有两条：
+
+    1. 覆盖顺序：它们针对的是 Vditor 自带样式，必须排在 vditor/dist/index.css
+       之后。入口样式表（admin.css）永远先于懒加载 chunk 的 CSS 被应用，
+       留在那边反而会被 Vditor 的基础样式盖回去（见 script 顶部的说明）。
+    2. 归属：这些选择器只对 Vditor 的 DOM 有意义，Vditor 只在这里出现。
+
+    不加 scoped：Vditor 的 DOM 是 JS 运行时插进 #vditor 的，没有 SFC 的
+    scope 属性，scoped 会编译成 .vditor[data-v-xxx] 而匹配不到。
+-->
+<style>
+/* 容器：撑满 .editor-content 的剩余高度（.editor-content 是 flex 列） */
+#vditor {
+    flex: 1;
+    min-height: 0;
+}
+
+/* Vditor 的暗色配色是靠 .vditor--dark 里一组 CSS 变量控制的，自带的是
+   GitHub Dark 那套（--panel-background-color: #24292e，偏蓝灰）。
+   压在青瓷暗色（#121817，偏青绿）的面板上像贴了块补丁。
+   这里只换变量值、不逐个元素覆盖，Vditor 自己的层次关系（面板 / 文本域 / 工具栏）
+   保持原样。特异性上 html.dark .vditor 是 (0,2,0)，压得过 .vditor--dark 的 (0,1,0) */
+html.dark .vditor {
+    --panel-background-color: var(--el-bg-color-overlay);
+    --textarea-background-color: var(--el-bg-color);
+    --textarea-text-color: var(--el-text-color-primary);
+    --toolbar-icon-color: var(--el-text-color-regular);
+    --border-color: var(--el-border-color);
+}
+
+/* 代码块底色。
+   Vditor 在 wysiwyg 模式下代码块有**两层**：可见的 .vditor-wysiwyg__pre（其中的 code
+   没有 .hljs class，落在 content-theme 里 code:not(.hljs) 那条规则上，是半透明蓝底
+   rgba(66,133,244,.36)）和隐藏的预览层（code 带 .hljs，底色来自 hljs 主题）。
+   两层都要覆盖，否则编辑时看到蓝底、切到预览又变另一个色。
+   不加 html.dark 前缀——浅色下同样存在（可见层浅蓝、预览层浅灰） */
+.vditor .vditor-wysiwyg__pre code:not(.hljs):not(.highlight-chroma),
+.vditor .vditor-reset pre code:not(.hljs):not(.highlight-chroma),
+.vditor .hljs {
+    background-color: var(--el-fill-color-light);
+}
+
+/* 行内代码：Vditor 默认也是那个半透明蓝，换成 primary 最浅档——
+   浅色下是淡青（#e6f2f0），暗色下是深青（#15201e），两套主题都在青瓷色系里 */
+.vditor .vditor-reset code:not(.hljs):not(.highlight-chroma) {
+    background-color: var(--el-color-primary-light-9);
+}
+
+/* Vditor 样式调整 */
+.vditor {
+    border: none !important;
+}
+
+.vditor-toolbar {
+    border-bottom: 1px solid var(--el-border-color-lighter) !important;
+    background: var(--el-fill-color-lighter) !important;
+    padding: 4px 8px !important;
+}
+
+/* 让编辑区域占满整个宽度 */
+.vditor-ir__editor,
+.vditor-wysiwyg__editor,
+.vditor-sv {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+}
+
+/* 移动端：断点与 admin.css 的移动端块保持一致（768px） */
+@media (max-width: 768px) {
+    /* 折叠态：隐藏 Vditor 工具栏（点击 ℹ️ 展开） */
+    .note-editor.meta-collapsed .vditor-toolbar {
+        display: none !important;
+    }
+
+    /* 移动端隐藏工具按钮 tooltip（触屏无悬浮意义且易被遮挡裁切） */
+    .vditor-toolbar .vditor-tip,
+    .vditor-tooltipped::before,
+    .vditor-tooltipped::after {
+        display: none !important;
+    }
+
+    /* Vditor 工具栏横向滚动 */
+    .vditor-toolbar {
+        flex-wrap: nowrap !important;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .vditor-toolbar::-webkit-scrollbar {
+        display: none;
+    }
+
+    .vditor-toolbar__item {
+        padding: 0 2px !important;
+    }
+}
+</style>

@@ -37,6 +37,11 @@ let network = null;
 let nodeSet = null;
 let edgeSet = null;
 let disposed = false;
+// 构建代次。build 是异步的（nextTick + 动态 import vis-network），
+// 连点刷新或快速切主题时两次 build 会交错：后一次已经 destroy 了，
+// 前一次却接着 new Network——那个实例没人持有引用，DOM 画布和事件监听就泄漏了。
+// 代次号让过期的那次在每个 await 之后直接放弃
+let buildSeq = 0;
 
 // canvas 里读不到 CSS 变量，只能运行时从 <html> 上算出来。
 // 前台这些令牌定义在 home.css；后台没有同名令牌，是在 admin.css 里用 var()
@@ -100,6 +105,7 @@ const destroy = () => {
 };
 
 const build = async () => {
+    const seq = ++buildSeq;
     destroy();
     if(!props.nodes.length && !props.edges.length) return;
 
@@ -107,10 +113,10 @@ const build = async () => {
     // 等一次 nextTick 让 DOM 更新落地，容器才有真实尺寸——否则 vis-network
     // 会在 0×0 的画布上算布局
     await nextTick();
-    if(disposed || !el.value) return;
+    if(disposed || seq !== buildSeq || !el.value) return;
 
     const { DataSet, Network } = await import('vis-network/standalone');
-    if(disposed || !el.value) return;
+    if(disposed || seq !== buildSeq || !el.value) return;
 
     const p = readPalette();
 

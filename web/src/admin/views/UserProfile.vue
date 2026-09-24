@@ -87,3 +87,41 @@ const saveUser = async () => {
     }
 };
 </script>
+
+<!--
+  本页私有样式，从 admin.css 搬来（原「账户信息页面」分节，含它那段移动端覆盖）。
+  **故意不加 scoped**：见 SiteSettings.vue 里同样的说明（抬特异性会盖掉共享规则）。
+  顺序保持原样：桌面规则在前，@media 覆盖在后。
+-->
+<style>
+.profile-page {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--el-bg-color);
+}
+
+.profile-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+.profile-form {
+    max-width: 480px;
+}
+
+.profile-form .el-form-item {
+    margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+    .profile-content {
+        padding: 16px 12px;
+    }
+
+    .profile-form {
+        max-width: none;
+    }
+}
+</style>

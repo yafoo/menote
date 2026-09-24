@@ -8,7 +8,8 @@
     "dev": "cross-env NODE_ENV=development node server.js",
     "dev:web": "vite --config web/vite.config.mjs",
     "build:vendor": "node web/vendor-vditor.mjs",
-    "build": "npm run build:vendor && vite build --config web/vite.config.mjs",
+    "check:ep": "node web/check-element-plus.mjs",
+    "build": "npm run check:ep && npm run build:vendor && vite build --config web/vite.config.mjs",
     "test:smoke": "node test/smoke.cjs"
   },
   "keywords": [

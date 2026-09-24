@@ -30,10 +30,10 @@ class Index extends Controller
             return this.$show('前端资源未构建，请在项目根目录执行：npm run build');
         }
 
-        // 首屏防闪：把站点默认主题填进外壳里那段内联脚本的占位符，
-        // 否则暗色主题下会先闪一帧浅色（见 lib/theme.js）
-        const mode = await theme.getSiteTheme(this.$model.site);
-        return this.$show(theme.inject(html, mode));
+        // 首屏注入：把站点默认主题和站点名填进外壳里的占位符，
+        // 否则暗色主题下会先闪一帧浅色、标签页标题也会先显示兜底名（见 lib/theme.js）
+        const vars = await theme.getShellVars(this.$model.site);
+        return this.$show(theme.inject(html, vars));
     }
 }
 

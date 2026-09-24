@@ -316,3 +316,268 @@ onUnmounted(() => {
     stopPoll();
 });
 </script>
+
+<!--
+  P2P 页私有样式，从 admin.css 搬来（原「P2P 管理页面」分节 236 行 + 它那段移动端覆盖）。
+  **故意不加 scoped**：见 SiteSettings.vue 里同样的说明（抬特异性会盖掉共享规则）。
+  顺序保持原样：桌面规则在前，@media 覆盖在后。
+-->
+<style>
+.p2p-page {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--el-bg-color-page);
+}
+
+.p2p-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    max-width: 960px;
+    width: 100%;
+    margin: 0 auto;
+    box-sizing: border-box;
+}
+
+.p2p-node-card {
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+}
+
+.p2p-node-id-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.p2p-node-id-main {
+    font-family: monospace;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+    letter-spacing: 0.5px;
+}
+
+.p2p-node-id-toggle {
+    font-size: 12px;
+    color: var(--el-color-primary);
+    cursor: pointer;
+    user-select: none;
+    margin-left: 8px;
+}
+
+.p2p-node-id-actions {
+    display: flex;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.p2p-node-id {
+    font-family: monospace;
+    font-size: 14px;
+    color: var(--el-text-color-primary);
+    word-break: break-all;
+}
+
+.p2p-node-id.offline {
+    color: var(--el-text-color-secondary);
+}
+
+.p2p-section-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+    margin: 16px 0 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.p2p-pending-section {
+    background: var(--el-color-warning-light-9);
+    border: 1px solid var(--el-color-warning-light-5);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+}
+
+.p2p-pending-section .p2p-section-title {
+    margin-top: 0;
+}
+
+.p2p-pending-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 0;
+    border-bottom: 1px dashed var(--el-border-color);
+    flex-wrap: wrap;
+}
+
+.p2p-pending-item:last-child {
+    border-bottom: none;
+}
+
+.p2p-pending-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.p2p-pending-id {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--el-text-color-primary);
+    word-break: break-all;
+}
+
+.p2p-pending-time {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+}
+
+.p2p-pending-actions {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.p2p-peer-id {
+    font-family: monospace;
+    font-size: 12px;
+    word-break: break-all;
+}
+
+/* 表格内节点 ID 可点击复制 */
+.p2p-peer-id-copy {
+    cursor: pointer;
+    color: var(--el-color-primary);
+}
+
+.p2p-peer-id-copy:hover {
+    text-decoration: underline;
+}
+
+.p2p-unnamed {
+    color: var(--el-text-color-secondary);
+}
+
+.p2p-empty {
+    text-align: center;
+    color: var(--el-text-color-secondary);
+    padding: 30px 0;
+    font-size: 13px;
+}
+
+.p2p-manual-add {
+    margin-top: 24px;
+}
+
+.p2p-manual-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+/* 同行三列：名称定宽窄列、节点 ID 弹性填充、按钮自然宽 */
+.p2p-manual-row .p2p-manual-name {
+    width: 200px;
+    flex-shrink: 0;
+}
+
+.p2p-manual-row .p2p-manual-id {
+    flex: 1;
+    min-width: 220px;
+}
+
+.p2p-manual-row .p2p-manual-btn {
+    flex-shrink: 0;
+}
+
+.p2p-qrcode-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    min-height: 200px;
+    justify-content: center;
+}
+
+.p2p-qrcode-img {
+    width: 240px;
+    height: 240px;
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 6px;
+}
+
+.p2p-qrcode-id {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--el-text-color-regular);
+    word-break: break-all;
+    text-align: center;
+    padding: 0 12px;
+}
+
+.p2p-qrcode-tip {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+}
+
+.p2p-authorize-body p {
+    margin: 0 0 8px;
+    font-size: 14px;
+}
+
+.p2p-authorize-id {
+    font-family: monospace;
+    font-size: 12px;
+    background: var(--el-bg-color-page);
+    border-radius: 6px;
+    padding: 10px 12px;
+    word-break: break-all;
+    color: var(--el-text-color-primary);
+}
+
+.p2p-authorize-tip {
+    color: var(--el-text-color-secondary);
+    font-size: 12px !important;
+}
+
+/* 自绘二维码图标（嵌 el-icon 内的 svg 直接铺满） */
+.p2p-icon-qr svg {
+    width: 1em;
+    height: 1em;
+}
+
+@media (max-width: 768px) {
+    .p2p-content {
+        padding: 12px;
+    }
+
+    .p2p-manual-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .p2p-manual-row .p2p-manual-name,
+    .p2p-manual-row .p2p-manual-id,
+    .p2p-manual-row .p2p-manual-btn {
+        width: 100%;
+    }
+
+    .p2p-qrcode-img {
+        width: 200px;
+        height: 200px;
+    }
+}
+</style>

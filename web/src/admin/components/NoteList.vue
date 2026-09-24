@@ -6,7 +6,7 @@
             <span class="note-list-count">{{ store.notesTotal }}</span>
         </div>
         <div class="note-list-header-actions">
-            <el-button size="small" text @click="createNote" title="新建笔记">
+            <el-button size="small" text @click="store.createNote()" title="新建笔记">
                 <el-icon><Plus /></el-icon>
             </el-button>
             <el-button size="small" text class="toggle-note-list-btn" @click="store.noteListHidden = !store.noteListHidden" title="收起笔记列表">
@@ -82,7 +82,7 @@
 <script setup>
 import { api } from '@/admin/api/index.js';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '@/admin/store/index.js';
 import Sortable from 'sortablejs';
 
@@ -228,28 +228,12 @@ const handleCommand = async (command, note) => {
             ElMessage.error(res.msg);
         }
     } else if(command === 'delete') {
-        try {
-            await ElMessageBox.confirm('确定要删除这篇笔记吗？删除后无法恢复。', '删除确认', {
-                confirmButtonText: '确定删除',
-                cancelButtonText: '取消',
-                type: 'warning'
-            });
-
-            const res = await api.deleteNote(note.id);
-            if(res.state === 1) {
-                ElMessage.success('删除成功');
-                store.closeTab(note.id, true);
-                // 刷新列表
-                store.loadNotes(store.currentCateId, searchKeyword.value);
-            } else {
-                ElMessage.error(res.msg);
-            }
-        } catch(e) {
-            // 用户取消
-        }
+        await deleteNote(note);
     }
 };
 
+// 删除单篇笔记（列表里的删除按钮 + 下拉菜单「删除笔记」共用）。
+// 顺带刷新列表并清掉可能开着的 Tab
 const deleteNote = async (note) => {
     try {
         await ElMessageBox.confirm('确定要删除这篇笔记吗？删除后无法恢复。', '删除确认', {
@@ -262,7 +246,7 @@ const deleteNote = async (note) => {
         if(res.state === 1) {
             ElMessage.success('删除成功');
             store.closeTab(note.id, true);
-            // 刷新列表
+            // 刷新列表（保持当前搜索词）
             store.loadNotes(store.currentCateId, searchKeyword.value);
         } else {
             ElMessage.error(res.msg);
@@ -272,45 +256,17 @@ const deleteNote = async (note) => {
     }
 };
 
-// 新建笔记（列表头部加号）
-const createNote = async () => {
-    const res = await api.createNote({
-        title: '无标题笔记',
-        cate_id: store.currentCateId || null,
-        content: ''
-    });
-
-    if(res.state === 1) {
-        const newNote = {
-            id: res.data.id,
-            title: '无标题笔记',
-            cate_id: store.currentCateId || null,
-            content: '',
-            keywords: '',
-            is_pinned: 0
-        };
-
-        store.notesCache[newNote.id] = newNote;
-        store.addTab(newNote);
-        store.loadNotes(store.currentCateId);
-        ElMessage.success('笔记已创建');
-    } else {
-        ElMessage.error(res.msg);
-    }
-};
-
 // 监听分类切换，重新加载笔记
 watch(() => store.currentCateId, (newVal) => {
     store.loadNotes(newVal, searchKeyword.value);
 });
 
-// 初始加载
-onMounted(async () => {
-    await store.loadNotes(store.currentCateId);
+// 首次加载由 store.init()（App.vue 的 onMounted）统一负责。
+// 子组件的 onMounted 先于父组件触发，在这里再调一次 loadNotes 就是
+// 对同一份数据的第二次请求（首屏 2 个完全相同的 /api/note/list）
+onMounted(() => {
     // 等待 DOM 更新后初始化 SortableJS
-    nextTick(() => {
-        initSortable();
-    });
+    nextTick(initSortable);
 });
 
 // 监听笔记列表变化，重新初始化 SortableJS
@@ -325,5 +281,14 @@ watch(() => store.isMobile, () => {
     nextTick(() => {
         initSortable();
     });
+});
+
+onUnmounted(() => {
+    // 搜索防抖计时器：不清理的话组件卸载后还会再打一次列表接口
+    clearTimeout(searchTimer);
+    if(sortableInstance) {
+        sortableInstance.destroy();
+        sortableInstance = null;
+    }
 });
 </script>

@@ -375,39 +375,38 @@ const selectIcon = (emoji) => {
     emojiPickerVisible.value = false;  // 选中即关弹窗
 };
 
-const showAddDialog = () => {
-    dialogTitle.value = '添加分类';
-    cateForm.id = null;
-    cateForm.pid = store.currentCateId || 0;
-    cateForm.icon = '📁';
-    cateForm.name = '';
-    cateForm.is_public = false;
-    iconInput.value = '';
+// 打开新增/编辑分类弹窗。
+// 三个入口（顶栏加号 / 菜单「新建子分类」/ 菜单「编辑分类」）只是预填值不同，
+// 表单字段的复位逻辑集中在这里，避免三处各抄一遍、漏改一处
+const openDialog = ({ title, id = null, pid = 0, icon = '📁', name = '', isPublic = false }) => {
+    dialogTitle.value = title;
+    cateForm.id = id;
+    cateForm.pid = pid;
+    cateForm.icon = icon;
+    cateForm.name = name;
+    cateForm.is_public = isPublic;
+    // 新建时输入框留空（显示 placeholder），编辑时回填当前图标
+    iconInput.value = id ? icon : '';
     activeEmojiGroup.value = '常用';   // 每次打开回到默认分组
     dialogVisible.value = true;
 };
 
+const showAddDialog = () => {
+    openDialog({ title: '添加分类', pid: store.currentCateId || 0 });
+};
+
 const handleCommand = async(command, data) => {
     if(command === 'add') {
-        dialogTitle.value = '添加子分类';
-        cateForm.id = null;
-        cateForm.pid = data.id;
-        cateForm.icon = '📁';
-        cateForm.name = '';
-        cateForm.is_public = false;
-        iconInput.value = '';
-        activeEmojiGroup.value = '常用';
-        dialogVisible.value = true;
+        openDialog({ title: '添加子分类', pid: data.id });
     } else if(command === 'edit') {
-        dialogTitle.value = '编辑分类';
-        cateForm.id = data.id;
-        cateForm.pid = data.pid;
-        cateForm.icon = data.icon || '📁';
-        cateForm.name = data.name;
-        cateForm.is_public = data.is_public === 1;
-        iconInput.value = data.icon || '';
-        activeEmojiGroup.value = '常用';
-        dialogVisible.value = true;
+        openDialog({
+            title: '编辑分类',
+            id: data.id,
+            pid: data.pid,
+            icon: data.icon || '📁',
+            name: data.name,
+            isPublic: data.is_public === 1
+        });
     } else if(command === 'delete') {
         try {
             await ElMessageBox.confirm(
@@ -460,59 +459,10 @@ const saveCate = async () => {
     }
 };
 
-const createNote = async () => {
-    // 不再检查分类，直接创建笔记
-    const res = await api.createNote({
-        title: '无标题笔记',
-        cate_id: store.currentCateId || null,
-        content: ''
-    });
-
-    if(res.state === 1) {
-        const newNote = {
-            id: res.data.id,
-            title: '无标题笔记',
-            cate_id: store.currentCateId || null,
-            content: '',
-            keywords: '',
-            is_pinned: 0
-        };
-
-        store.notesCache[newNote.id] = newNote;
-        store.addTab(newNote);
-        ElMessage.success('笔记已创建');
-    } else {
-        ElMessage.error(res.msg);
-    }
-};
-
+// 分类节点上的加号：先切到该分类（笔记列表会跟着刷新），再新建一篇挂进去
 const createNoteInCate = async (cateId) => {
-    // 设置当前分类
     store.currentCateId = cateId;
-
-    const res = await api.createNote({
-        title: '无标题笔记',
-        cate_id: cateId,
-        content: ''
-    });
-
-    if(res.state === 1) {
-        const newNote = {
-            id: res.data.id,
-            title: '无标题笔记',
-            cate_id: cateId,
-            content: '',
-            keywords: '',
-            is_pinned: 0
-        };
-
-        store.notesCache[newNote.id] = newNote;
-        store.addTab(newNote);
-        store.loadNotes(cateId);
-        ElMessage.success('笔记已创建');
-    } else {
-        ElMessage.error(res.msg);
-    }
+    await store.createNote(cateId);
 };
 
 // 底部「更多」菜单的命令处理。菜单项的 command 就是目标路由，
@@ -556,7 +506,9 @@ const goToHome = async () => {
                 type: 'info'
             }
         );
-        window.open('/', '_blank');
+        // noopener：新开的前台页面拿不到本页的 window.opener，
+        // 否则它可以通过 window.opener.location 把后台标签页改到钓鱼页
+        window.open('/', '_blank', 'noopener');
     } catch(e) {
         // 用户取消确认框：留在当前页
     }

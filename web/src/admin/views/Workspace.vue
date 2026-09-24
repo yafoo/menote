@@ -15,7 +15,7 @@
         <div class="mobile-header-actions">
             <el-button v-if="store.mobileView === 'editor' && store.tabs.length > 0" :text="store.activeTab && store.activeTab.modified ? false : true" :type="store.activeTab && store.activeTab.modified ? 'primary' : 'default'" @click="saveNote" class="mobile-save-btn" :title="store.activeTab && store.activeTab.modified ? '有未保存修改，点击保存' : '保存'" :icon="Check">
             </el-button>
-            <el-button v-else text @click="createNote" class="mobile-add-btn" title="新建笔记">
+            <el-button v-else text @click="store.createNote()" class="mobile-add-btn" title="新建笔记">
                 <el-icon><Plus /></el-icon>
             </el-button>
         </div>
@@ -65,12 +65,19 @@
                         </div>
                     </div>
 
-                    <NoteEditor />
+                    <!-- NoteEditor 是异步组件（内含 Vditor，约 291 kB JS），
+                         首次打开笔记时才下载。fallback 只在下载/初始化期间出现 -->
+                    <Suspense>
+                        <NoteEditor />
+                        <template #fallback>
+                            <div class="editor-loading">编辑器加载中…</div>
+                        </template>
+                    </Suspense>
                 </div>
 
                 <div v-else class="empty-state">
                     <el-empty description="点击「新建笔记」开始创作">
-                        <el-button type="primary" @click="createNote">
+                        <el-button type="primary" @click="store.createNote()">
                             <el-icon><Plus /></el-icon> 新建笔记
                         </el-button>
                     </el-empty>
@@ -125,39 +132,15 @@
 import { api } from '@/admin/api/index.js';
 import { Check } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
+import { defineAsyncComponent } from 'vue';
 import { store } from '@/admin/store/index.js';
 import CategoryTree from '@/admin/components/CategoryTree.vue';
-import NoteEditor from '@/admin/components/NoteEditor.vue';
 import NoteList from '@/admin/components/NoteList.vue';
 
-
-
-const createNote = async () => {
-    // 不再检查分类，直接创建笔记
-    const res = await api.createNote({
-        title: '无标题笔记',
-        cate_id: store.currentCateId || null,
-        content: ''
-    });
-
-    if(res.state === 1) {
-        const newNote = {
-            id: res.data.id,
-            title: '无标题笔记',
-            cate_id: store.currentCateId || null,
-            content: '',
-            keywords: '',
-            is_pinned: 0
-        };
-
-        store.notesCache[newNote.id] = newNote;
-        store.addTab(newNote);
-        store.loadNotes(store.currentCateId);
-        ElMessage.success('笔记已创建');
-    } else {
-        ElMessage.error(res.msg);
-    }
-};
+// Vditor（291 kB JS + 40 kB CSS，gzip 约 79 kB）只在编辑笔记时才需要，而 Workspace
+// 是 /admin 的默认路由——静态 import 等于每个打开后台的人都先下载整个编辑器。
+// 改成异步组件后它单独成 chunk，第一次打开笔记才拉取（之后走浏览器缓存）
+const NoteEditor = defineAsyncComponent(() => import('@/admin/components/NoteEditor.vue'));
 
 const handleTabRemove = (id) => {
     store.closeTab(id);

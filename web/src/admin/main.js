@@ -2,7 +2,7 @@
 //
 // ── Element Plus 按需引入 ─────────────────────────────────────────────
 // 此前用 `app.use(ElementPlus)` 全量注册，会把全部 ~90 个组件连同整套
-// theme-chalk CSS 都打进包。现改为显式列出用到的组件（29 个）。
+// theme-chalk CSS 都打进包。现改为显式列出用到的组件（30 个）。
 //
 // ⚠️ 新增 Element Plus 组件时，下面三处都要改，漏一处就有问题：
 //    1. `import {...} from 'element-plus'`  —— 漏了 → 模板里是未知标签，静默不渲染
@@ -13,8 +13,14 @@
 //    组件样式入口会自动带上它依赖的组件样式（如 select → scrollbar/popper/tag/option、
 //    table → scrollbar/tooltip/checkbox），所以只写顶层组件即可。
 //    目录名用 kebab-case，与模板标签一致；不确定就先 `ls node_modules/element-plus/es/components`。
+//
+//    ↑ 这三处漏改不会报任何错（生产构建不输出 "Failed to resolve component"），
+//      只会在页面上表现为"这块空白/没样式"。所以 `npm run build` 前会先跑
+//      `node web/check-element-plus.mjs` 做一致性自检，ERROR 即中断构建。
 
-// 样式顺序：Element Plus → Vditor → 项目自定义（自定义必须最后，覆盖优先级才对）
+// 样式顺序：Element Plus → 项目自定义（自定义必须最后，覆盖优先级才对）。
+// Vditor 的样式**不在这里**——它随 NoteEditor.vue 一起懒加载，
+// 见该文件顶部关于 CSS 覆盖顺序的说明
 import 'element-plus/es/components/aside/style/css';
 import 'element-plus/es/components/badge/style/css';
 import 'element-plus/es/components/button/style/css';
@@ -52,7 +58,6 @@ import 'element-plus/es/components/tree/style/css';
 // 不引这个文件的话加 .dark 类也没有任何效果（见 shared/theme.js 的 applyTheme）。
 // 必须放在 admin.css 之前——admin.css 里的 html.dark 块要能盖掉这里的默认蓝
 import 'element-plus/theme-chalk/dark/css-vars.css';
-import 'vditor/dist/index.css';
 import './styles/admin.css';
 
 import { createApp } from 'vue';

@@ -109,3 +109,54 @@ onMounted(() => {
     loadConfig();
 });
 </script>
+
+<!--
+  本页私有样式，从 admin.css 搬来（原「站点设置页面」分节，含它那段移动端覆盖）。
+  **故意不加 scoped**：类名只被本页用；scoped 会把特异性从 (0,1,0) 抬到 (0,2,0)，
+  反而盖掉 admin.css 里给所有页面准备的共享规则（.el-form-item 的紧凑间距等）。
+  顺序也保持原样：桌面规则在前，@media 覆盖在后。
+-->
+<style>
+.settings-page {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--el-bg-color);
+}
+
+.settings-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+.settings-form {
+    max-width: 600px;
+}
+
+.settings-form .el-form-item {
+    margin-bottom: 20px;
+}
+
+/* 枚举型配置项（主题等）：下拉只有几个选项，不必占满整行 */
+.settings-select {
+    width: 240px;
+}
+
+.form-tips {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    margin-top: 4px;
+    line-height: 1.6;
+}
+
+@media (max-width: 768px) {
+    .settings-content {
+        padding: 16px 12px;
+    }
+
+    .settings-form {
+        max-width: none;
+    }
+}
+</style>

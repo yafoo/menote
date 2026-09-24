@@ -1,6 +1,11 @@
 import { ElMessage } from 'element-plus';
 import { reactive } from 'vue';
 import { request, api } from '@/admin/api/index.js';
+import { router } from '@/admin/router/index.js';
+
+// 笔记缓存上限（见 cacheNote）。缓存条目里带正文，单条可能几十 kB，
+// 不设上限的话长时间浏览后台内存只增不减
+const NOTES_CACHE_MAX = 30;
 
 export const store = reactive({
     // 用户信息
@@ -27,8 +32,10 @@ export const store = reactive({
     notesPage: 1,
     notesPageSize: 20,
 
-    // 笔记数据缓存
+    // 笔记数据缓存（LRU，读写都走 cacheNote / uncacheNote）
     notesCache: {},
+    // 最近访问过的笔记 id，末尾最新。cacheNote 用它挑"最久未访问"的一条淘汰
+    noteOrder: [],
 
     // 移动端：笔记列表是否隐藏
     noteListHidden: false,
@@ -71,7 +78,7 @@ export const store = reactive({
     // 再按一次返回才真正关抽屉（pop 标记条目，走正常手势链）。
     navigateFromSidebar(path) {
         this.closeSidebar(false);
-        window.__routerPush && window.__routerPush(path);
+        router.push(path);
     },
 
     // 进入编辑器视图（移动端单栏模式）
@@ -223,6 +230,10 @@ export const store = reactive({
     // 加载笔记详情
     async loadNote(id) {
         if(this.notesCache[id]) {
+            // 命中也要"续期"，否则淘汰退化成 FIFO——常用笔记照样会被清掉。
+            // 只在这里续期（而不是在 currentNote 那个 getter 里），
+            // 因为 getter 每次渲染都会走，在里面改状态会变成渲染期副作用
+            this.cacheNote(id, this.notesCache[id]);
             return this.notesCache[id];
         }
 
@@ -233,7 +244,7 @@ export const store = reactive({
                 if(data.data.cate_id === 0) {
                     data.data.cate_id = null;
                 }
-                this.notesCache[id] = data.data;
+                this.cacheNote(id, data.data);
                 return data.data;
             } else {
                 ElMessage.error(data.msg || '加载笔记失败');
@@ -242,6 +253,64 @@ export const store = reactive({
             console.error('加载笔记失败', e);
         }
         return null;
+    },
+
+    // ---- 笔记缓存（LRU）----
+    /** 写入缓存并维护访问顺序；超出上限时淘汰最久未访问的一条 */
+    cacheNote(id, note) {
+        this.notesCache[id] = note;
+        this.noteOrder = this.noteOrder.filter(x => x !== id);
+        this.noteOrder.push(id);
+
+        // 淘汰时**跳过 Tab 里正开着的笔记**：编辑器靠 notesCache[activeTabId] 取数据，
+        // 淘汰掉会让 currentNote 变 null，DOM 被 v-if 拆掉、未保存内容直接丢。
+        // i 只在跳过时自增——淘汰掉一个后，后一条会补到 i 位置上
+        for(let i = 0; this.noteOrder.length > NOTES_CACHE_MAX && i < this.noteOrder.length;) {
+            const victim = this.noteOrder[i];
+            if(this.tabs.some(t => t.id === victim)) {
+                i++;
+            } else {
+                this.noteOrder.splice(i, 1);
+                delete this.notesCache[victim];
+            }
+        }
+    },
+
+    /** 从缓存移除（放弃修改后调用，下次打开重新拉服务端数据） */
+    uncacheNote(id) {
+        delete this.notesCache[id];
+        this.noteOrder = this.noteOrder.filter(x => x !== id);
+    },
+
+    // 新建笔记（工作区顶栏 / 笔记列表 / 分类树三处共用）。
+    // cateId 省略 = 用当前分类；显式传 null = 未分类
+    async createNote(cateId) {
+        const target = cateId === undefined ? (this.currentCateId || null) : cateId;
+        const res = await api.createNote({
+            title: '无标题笔记',
+            cate_id: target,
+            content: ''
+        });
+
+        if(res.state !== 1) {
+            ElMessage.error(res.msg);
+            return null;
+        }
+
+        const newNote = {
+            id: res.data.id,
+            title: '无标题笔记',
+            cate_id: target,
+            content: '',
+            keywords: '',
+            is_pinned: 0
+        };
+
+        this.cacheNote(newNote.id, newNote);
+        this.addTab(newNote);
+        this.loadNotes(this.currentCateId);
+        ElMessage.success('笔记已创建');
+        return newNote;
     },
     
     // 添加 Tab
@@ -396,7 +465,7 @@ export const store = reactive({
             if(fresh.cate_id === 0) {
                 fresh.cate_id = null;
             }
-            this.notesCache[id] = fresh;
+            this.cacheNote(id, fresh);
 
             const tab = this.tabs.find(t => t.id === id);
             if(tab) {

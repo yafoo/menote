@@ -3,8 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!-- 标题由前端路由在切换页面时用 document.title 覆盖（SPA 没有服务端渲染） -->
-    <title>MeNote</title>
+    <!-- 标题由前端路由在切换页面时用 document.title 覆盖（SPA 没有服务端渲染）。
+         __MENOTE_SITENAME__ 是服务端占位符，返回外壳时替换成站点名（见 lib/theme.js），
+         这样首帧和爬虫拿到的就是真实站点名，而不是等 /api/pub/config 回来才改。
+         Vite dev server 直出时它还是字面量，下面的脚本会兜底成 MeNote -->
+    <title>__MENOTE_SITENAME__</title>
     <!-- 移动端浏览器地址栏配色，由下面的脚本按当前主题改写 -->
     <meta name="theme-color" content="#ffffff">
     <link rel="icon" href="/favicon.ico">
@@ -17,7 +20,8 @@
         校验会把它当非法值退回 auto。
 
         ⚠️ 这段逻辑与 web/src/shared/theme.js 的 applyTheme 是同一件事的两份实现，
-           改一边记得改另一边（后台入口 admin.html 里也有一份一模一样的）。
+           改一边记得改另一边（后台入口 admin.html 里也有一份一模一样的，
+           连末尾那行 <title> 站点名兜底一起）。
     -->
     <script>
     (function () {
@@ -44,6 +48,10 @@
 
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute('content', mode === 'dark' ? '#0f1716' : '#ffffff');
+
+        // <title> 里的站点名占位符：服务端返回外壳时会替换掉（见 lib/theme.js），
+        // dev server 直出时它还是字面量，兜底成默认名，免得标签页显示一串下划线
+        if (document.title.indexOf('__MENOTE_') === 0) document.title = 'MeNote';
     })();
     </script>
 

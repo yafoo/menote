@@ -1,10 +1,11 @@
 import { createRouter, createWebHashHistory } from 'vue-router';
 
 // 路由全部懒加载（动态 import）：每个页面单独成 chunk，首屏只下载当前页。
-// 收益最大的是两个重依赖——它们被路由隔离后不再进首屏包：
-//   - GraphView → vis-network（约 600KB）
-//   - Workspace → NoteEditor → Vditor（约 700KB，只有编辑笔记才需要）
-// 其余 4 个页面（设置/Token/P2P/个人）完全不需要这两个库。
+//   - GraphView → vis-network（约 615KB）：只有进图谱页才下载
+//   - Workspace 是 /admin 的默认路由，路由级的懒加载拦不住 Vditor；
+//     它是在 Workspace.vue 里对 NoteEditor 再做一次异步拆分（defineAsyncComponent），
+//     所以打开后台只下载工作区外壳，第一次点开笔记才拉编辑器（约 291KB JS）
+// 其余 4 个页面（设置/Token/P2P/个人）这两个库都不需要。
 const routes = [
     { path: '/', redirect: '/admin' },
     { path: '/admin', component: () => import('@/admin/views/Workspace.vue') },
@@ -19,7 +20,3 @@ export const router = createRouter({
     history: createWebHashHistory(),
     routes
 });
-
-// 侧栏跳转桥：store（组件外 reactive 对象）拿不到 this.$router，
-// navigateFromSidebar 经此跳转，与模板内 $router.push 等价
-window.__routerPush = (path) => router.push(path);

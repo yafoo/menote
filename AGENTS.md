@@ -61,6 +61,7 @@ menote/
 │   ├── admin.html         # 后台入口（构建产出 public/static/dist/admin.html）
 │   ├── home.html          # 前台入口（构建产出 public/static/dist/home.html）
 │   ├── vendor-vditor.mjs  # 构建时从 node_modules 生成 Vditor 运行时资源（白名单式，约 9.8M）
+│   ├── check-element-plus.mjs  # 构建期自检：EP 三处清单 ↔ 模板里的 el-* 标签/图标
 │   ├── src/admin/         # 后台源码：main.js / App.vue / api / store / router / components / views
 │   └── src/home/          # 前台源码：main.js / App.vue / api / store / router / utils / styles / components / views
 ├── public/static/dist/    # 【构建产物，git 忽略】hash 化的 js/css + admin.html + home.html
@@ -90,6 +91,7 @@ npm run test:smoke   # 前台 SPA 冒烟测试（需服务已在 3107 运行）
 - Vditor 的 `cdn` 指向 `/static/vendor/vditor`：它运行时仍按 cdn 动态加载 lute/icons/i18n/主题等资源，**其中 icons 走同步 XHR，因此 cdn 必须同源**（换成独立域名会因 CORS 挂掉）
 - 分包用 Rolldown 的 `codeSplitting.groups`（`vendor-vue` / `vendor-element-plus` / `vendor-vditor` / `vendor-vis` / `vendor`），目的是让缓存更耐用；**与 `advancedChunks` 同时指定时后者被忽略**
 - Element Plus **按需引入**：`web/src/admin/main.js` 里显式注册 30 个组件 + 33 行单组件 style import，`@element-plus/icons-vue` 逐个 import。**新增组件必须同时加到 `COMPONENTS` 和 style import 两处**，否则模板里是未解析的自定义元素（生产构建无警告，静默白屏）。`ElLoading` 是插件不是组件，`v-loading` 要 `app.use(ElLoading)` 单独注册
+- 上面这三处漏改**不会报任何错**（Vue 生产构建不输出 `Failed to resolve component`），所以 `npm run build` 前会先跑 `web/check-element-plus.mjs`（`npm run check:ep`）做一致性自检：把 main.js 的三份清单和**模板里真实出现的 `el-*` 标签 / PascalCase 图标**双向比对，ERROR 即中断构建。单独跑加 `--warn-only` 只看报告不失败
 
 ## 前台 SPA 架构（2026-09-23 迁移）
 
@@ -197,8 +199,8 @@ npm run test:smoke   # 前台 SPA 冒烟测试（需服务已在 3107 运行）
 
 | 位置 | 职责 |
 |---|---|
-| `web/home.html`、`web/admin.html` | **首屏防闪**：`<head>` 里的内联脚本在解析 `<body>` 之前就写好 `data-theme` / `data-theme-mode` / `html.dark`。两份内容必须一致 |
-| `lib/theme.js`（服务端） | 读站点默认主题（5 秒内存缓存），替换外壳里的 `__MENOTE_THEME__` 占位符 |
+| `web/home.html`、`web/admin.html` | **首屏防闪 + 首屏标题**：`<head>` 里的内联脚本在解析 `<body>` 之前就写好 `data-theme` / `data-theme-mode` / `html.dark`，并把没被替换的 `__MENOTE_SITENAME__` 兜底成默认名。两份内容必须一致 |
+| `lib/theme.js`（服务端） | **外壳注入**：读站点默认主题 + 站点名（同一个 5 秒内存缓存，`getShellVars()`），替换外壳里的 `__MENOTE_THEME__` / `__MENOTE_SITENAME__` 占位符（`inject()`）。站点名进 `<title>` 前会转义 |
 | `web/src/shared/theme.js`（前端） | `applyTheme` / `setThemeMode` / `cycleThemeMode` / `previewTheme` / `initTheme` / `syncFromSite` + 两个 ref |
 | `web/src/home/styles/home.css` | 前台令牌：`:root` 浅色 + `[data-theme="dark"]` 暗色 |
 | `web/src/admin/styles/admin.css` | 后台**只**覆盖 Element Plus 的 `--el-color-primary` 系列和几个中性底色 |
@@ -319,11 +321,15 @@ web/src/admin/            # 后台（hash 路由，引 Element Plus）
 ├── App.vue              # el-config-provider(zhCn) + <router-view/>
 ├── api/index.js         # request() 统一请求封装 + api 对象（export）
 ├── store/index.js       # 全局 reactive store（export store，未用 Pinia）
-├── router/index.js      # hash 路由 + window.__routerPush 侧栏跳转桥，全部懒加载
+├── router/index.js      # hash 路由，全部懒加载
 ├── permissions.js       # TOKEN_PERM_GROUPS
 ├── components/          # CategoryTree / NoteList / NoteEditor
+│                        # NoteEditor 由 Workspace.vue 用 defineAsyncComponent 再拆一层
+│                        # （Vditor 291kB 不进首屏），Vditor 的 CSS 与针对它的覆盖规则
+│                        # 都放在这个文件内，理由见下节
 ├── views/               # Workspace / SiteSettings / TokenManage / UserProfile / P2pManage / GraphView
-└── styles/admin.css     # 桌面样式 + 末尾移动端媒体查询块
+└── styles/admin.css     # 主题令牌 + Element Plus 全局覆盖 + 跨页面共享类
+                         # + 末尾混装的移动端媒体查询块（页面私有样式在各 .vue 里）
 
 web/src/home/             # 前台（history 路由，不引 Element Plus）
 ├── main.js / App.vue    # 入口 + header/nav/搜索/footer 布局
@@ -334,15 +340,52 @@ web/src/home/             # 前台（history 路由，不引 Element Plus）
 ├── router/index.js      # history 路由，5 条全懒加载
 ├── utils/index.js       # formatTime / splitTags / flattenCates（第二参 withDepth）
 ├── components/          # NoteList（首页/分类/搜索三页共用，prop 控制元信息）
+│                        # 内部用 computed 把 formatTime/splitTags 预算成 time/tags 字段，
+│                        # 模板里不再重复调用（v-if 判一次、插值/v-for 再算一次的写法已去掉）
 ├── views/               # HomeView / CateView / SearchView / NoteView / GraphView
 └── styles/home.css      # 从旧 public/static/app/style.css 迁移，类名不变
 ```
+
+### 后台首屏体积：两条懒加载线
+
+`Workspace` 是 `/admin` 的默认路由，所以**路由级懒加载挡不住它内部的依赖**。两个重依赖要各拆一次：
+
+| 依赖 | 拆法 | 首屏省下（gzip） |
+|---|---|---|
+| vis-network（615 kB） | 天然隔离：只有 `GraphView` 这个路由用 | 149 kB |
+| Vditor（291 kB JS + 40 kB CSS） | `Workspace.vue` 里 `defineAsyncComponent(() => import('@/admin/components/NoteEditor.vue'))` + `<Suspense>` 兜底 | 79 kB |
+
+**Vditor 的 CSS 必须跟组件走，不能留在 `main.js` 的入口样式区**：
+
+- 入口样式表永远先于懒加载 chunk 的 CSS 被应用。`NoteEditor.vue` 末尾的 `<style>` 块里有一批覆盖 Vditor 自带样式的规则（暗色变量、代码块底色、工具栏），留在 `admin.css` 的话会被后加载的 Vditor 基础样式盖回去
+- 反过来，把 `import 'vditor/dist/index.css'` 放进 `NoteEditor.vue`、覆盖规则放同文件的 `<style>`，构建后 Vite 会按模块图顺序拼进同一个 chunk CSS，顺序天然正确。**可以自查**：产物 `Workspace.*.js` 里的 `__vite__mapDeps` 数组，`vendor-vditor.*.css` 的下标必须小于 `NoteEditor.*.css`
+- 该 `<style>` 块**不能加 `scoped`**：Vditor 的 DOM 是 JS 运行时插进 `#vditor` 的，没有 SFC 的 scope 属性，`scoped` 会编译成 `.vditor[data-v-xxx]` 而匹配不到
+
+### 样式放哪里：页面私有样式进 SFC（2026-09-24）
+
+`admin.css` 从 1918 行收到 1462 行，5 个页面级分节（站点设置 / Token / 账户 / 图谱 / P2P，共 267 行）连同它们各自的移动端覆盖搬进了对应 `.vue` 的 `<style>` 块。判断标准就一条：**这个选择器只被一个组件用 → 进那个组件**。
+
+分界线：
+
+| 放哪 | 内容 |
+|---|---|
+| 组件内 `<style>` | 组件私有类名（`.p2p-*`、`.settings-*`、`.token-*`、`.profile-*`、`.graph-*`）+ 它们自己的 `@media`；第三方组件集成样式（Vditor 那套，见上节） |
+| `admin.css` | 主题令牌（`:root` / `html.dark`）、Element Plus 全局覆盖（紧凑模式、`.el-form-item`、`.el-dialog` 等）、跨页面共享类（`.page-header*`、`.table-scroll-wrapper`、`.workspace*`、`.note-item*`）、以及**末尾那个混装的移动端媒体查询块** |
+
+三条硬规则：
+
+1. **不要加 `scoped`。** scoped 会把 `.p2p-page` 编译成 `.p2p-page[data-v-x]`，特异性从 (0,1,0) 抬到 (0,2,0)，admin.css 里给所有页面准备的共享规则（`.el-form-item` 的紧凑间距、`.el-container` 的高度等）就挤不过它了。类名是单组件独占的，不存在外泄问题
+2. **移动端覆盖必须跟着一起搬。** `admin.css` 末尾那个 `@media (max-width: 768px)` 块里有各页的覆盖（`.p2p-manual-row{flex-direction:column}` 之类）。只搬桌面规则不搬它，移动端就废了：非 scoped 的组件样式随 chunk 后加载、会排在 admin.css 的 `@media` 之后，同特异性下后者被盖掉
+3. **保持"桌面在前、`@media` 在后"的原始顺序**，层叠结果才与搬运前一致
+
+搬完后用 CDP 抓了 24 组快照（6 个页面 × 桌面/移动 × 浅色/暗色）逐元素比对计算样式，**属性差异 0 处**。以后做同类重构可以复用这套办法：抓全量元素的计算样式快照 → 改 → 再抓 → LCS 对齐后逐属性 diff。注意别按"文档顺序下标"硬比：`el-select` 的下拉 popper 是首次展开才渲染的、Vditor 是渐进渲染的，元素个数会抖；另外 `document.body.querySelectorAll('*')` 取不到 `<html>` / `<body>` 自己。
 
 ### 加新页面流程（以 admin 为例）
 1. 在 `views/` 写 `Xxx.vue`（`<template>` + `<script setup>`）
 2. `router/index.js` 加 `{path: '/admin/xxx', component: () => import(...)}`（懒加载）
 3. 侧栏 `tree-footer-actions` 加入口按钮
-4. CSS 加进 `styles/admin.css` 桌面区 + 移动端媒体查询块
+4. 页面私有样式直接写在 `Xxx.vue` 的 `<style>` 块里（**不加 `scoped`**，含该页自己的 `@media`）；只有跨页面共享的、Element Plus 全局覆盖的、以及主题令牌才加进 `styles/admin.css`
+   （例外：被懒加载的第三方组件——如 Vditor——的样式同样写在组件内，见"后台首屏体积"一节）
 5. `npm run build`（产物名带 hash，无需再手工 bump `?v=`）
 
 前台同理，但**多一步**：若新增的是**顶级 URL**（如 `/tag/:name`），必须同时在 `config/routes.js` 加服务端路由指向某个薄壳控制器，否则直接访问/刷新会 404（见"前台 SPA 架构"）。

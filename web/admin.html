@@ -3,7 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MeNote 管理后台</title>
+    <!-- __MENOTE_SITENAME__ 是服务端占位符，返回外壳时替换成站点名（见 lib/theme.js）。
+         Vite dev server 直出时它还是字面量，下面的脚本会兜底成 MeNote。
+         后台 SPA 不设 document.title，所以这个标题是常驻的 -->
+    <title>__MENOTE_SITENAME__ 管理后台</title>
     <meta name="theme-color" content="#f5f7fa">
     <link rel="icon" href="/favicon.ico">
 
@@ -14,8 +17,8 @@
         主题（见 lib/theme.js）；Vite dev server 直出时它还是字面量，下面的白名单
         校验会把它当非法值退回 auto。
 
-        ⚠️ 与 web/home.html 里的那份完全一致，改一边记得改另一边；
-           前端逻辑在 web/src/shared/theme.js。
+        ⚠️ 与 web/home.html 里的那份完全一致（含末尾那行 <title> 站点名兜底），
+           改一边记得改另一边；前端逻辑在 web/src/shared/theme.js。
     -->
     <script>
     (function () {
@@ -41,6 +44,10 @@
 
         var meta = document.querySelector('meta[name="theme-color"]');
         if (meta) meta.setAttribute('content', mode === 'dark' ? '#0c1110' : '#f5f7fa');
+
+        // <title> 里的站点名占位符：服务端返回外壳时会替换掉（见 lib/theme.js），
+        // dev server 直出时它还是字面量，兜底成默认名，免得标签页显示一串下划线
+        if (document.title.indexOf('__MENOTE_') === 0) document.title = 'MeNote 管理后台';
     })();
     </script>
 

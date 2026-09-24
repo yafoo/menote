@@ -53,11 +53,12 @@ class Index extends Controller
             return this.$show('前端资源未构建，请在项目根目录执行：npm run build');
         }
 
-        // 首屏防闪：把站点默认主题填进外壳里那段内联脚本的占位符。
-        // 不注入的话，暗色主题的访客会先看到一帧浅色再跳成暗色。
+        // 首屏注入：把站点默认主题和站点名填进外壳里的占位符。
+        // 主题不注入的话，暗色访客会先看到一帧浅色再跳成暗色；站点名不注入的话，
+        // <title> 会先显示兜底名再跳成站点名（前端 store.applyTitle 才拿到 sitename）。
         // 这个读取带 5 秒内存缓存，不是每次请求都查库（见 lib/theme.js）
-        const mode = await theme.getSiteTheme(this.$model.site);
-        return this.$show(theme.inject(html, mode));
+        const vars = await theme.getShellVars(this.$model.site);
+        return this.$show(theme.inject(html, vars));
     }
 }
 

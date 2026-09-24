@@ -305,3 +305,101 @@ onMounted(() => {
     loadTokens();
 });
 </script>
+
+<!--
+  本页私有样式，从 admin.css 搬来（原「Token 管理页面」分节，含它那段移动端覆盖）。
+  **故意不加 scoped**：见 SiteSettings.vue 里同样的说明（抬特异性会盖掉共享规则）。
+  顺序保持原样：桌面规则在前，@media 覆盖在后。
+-->
+<style>
+.token-page {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: var(--el-bg-color);
+}
+
+.token-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px;
+}
+
+.token-empty {
+    text-align: center;
+    padding: 60px 0;
+    color: var(--el-text-color-secondary);
+    font-size: 14px;
+}
+
+.token-value {
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--el-text-color-regular);
+    margin-right: 8px;
+}
+
+/* Token 权限标签 */
+.token-perm-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px;
+}
+
+.token-perm-tag {
+    margin-right: 2px;
+}
+
+/* Token 弹窗权限分组勾选 */
+.perm-groups {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.perm-group {
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 4px;
+    padding: 8px 10px;
+}
+
+.perm-group-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: var(--el-text-color-regular);
+    font-weight: 500;
+}
+
+.perm-group-all {
+    height: auto;
+    font-size: 12px;
+    font-weight: 400;
+}
+
+.perm-group-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+}
+
+.perm-group-items .el-checkbox {
+    margin-right: 0;
+}
+
+.keep-expire-check {
+    height: auto;
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+}
+
+@media (max-width: 768px) {
+    .token-list {
+        padding: 16px 12px;
+    }
+}
+</style>

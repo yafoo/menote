@@ -14,9 +14,9 @@
                 <RouterLink v-if="note.cate_id" :to="`/cate/${note.cate_id}`" class="cate">
                     {{note.cate_name}}
                 </RouterLink>
-                <span v-if="formatTime(note.add_time, true)">{{formatTime(note.add_time, true)}}</span>
-                <span v-if="splitTags(note.keywords).length" class="tags">
-                    <span v-for="tag in splitTags(note.keywords)" :key="tag" class="tag">{{tag}}</span>
+                <span v-if="noteTime">{{noteTime}}</span>
+                <span v-if="noteTags.length" class="tags">
+                    <span v-for="tag in noteTags" :key="tag" class="tag">{{tag}}</span>
                 </span>
             </div>
         </header>
@@ -37,7 +37,7 @@
 </template>
 
 <script setup>
-import {ref, watch, nextTick, onMounted} from 'vue';
+import {ref, computed, watch, nextTick, onMounted} from 'vue';
 import {useRoute} from 'vue-router';
 import {api} from '@/home/api/index.js';
 import {store} from '@/home/store/index.js';
@@ -49,6 +49,11 @@ const route = useRoute();
 const note = ref(null);
 const loading = ref(true);
 const contentEl = ref(null);
+
+// 模板里原来 formatTime / splitTags 各被调了两次（v-if 判一次、插值或 v-for 再算一次）。
+// 都是纯函数，提到 computed 里算一次就够
+const noteTime = computed(() => note.value ? formatTime(note.value.add_time, true) : '');
+const noteTags = computed(() => note.value ? splitTags(note.value.keywords) : []);
 
 // Vditor 按需加载：只有笔记详情页需要它（约 291KB）。
 // 静态 import 的话首页/列表页也要白白下载一份。
@@ -73,20 +78,33 @@ const loadVditor = () => {
 //   · hljs.style 是代码块的语法高亮配色。自托管目录里只有 github 系三套
 //     （见 public/static/vendor/vditor/dist/js/highlight.js/styles），
 //     暗色用 github-dark，它的 #0d1117 底跟我们的 --bg-sunk 很接近
-const renderContent = async () => {
-    if(!note.value || !contentEl.value) return;
-    const content = note.value.content || '';
-    contentEl.value.innerHTML = '';
-    if(!content.trim()) return;
+//
+// ⚠️ Vditor.preview 是异步的（首次还要动态加载 lute / hljs 主题），并发调用会
+// 互相覆盖：快速点两篇笔记时，先发起的那次可能后画完，把新笔记的正文顶掉。
+// 这里把渲染串成一条链、并用代次号丢弃过期任务，保证同一时刻只有一个预览在写
+// contentEl。串行还顺带避免了两次 preview 同时改 innerHTML 造成的残影
+let renderChain = Promise.resolve();
+let renderSeq = 0;
+const renderContent = () => {
+    const seq = ++renderSeq;
+    renderChain = renderChain.then(async () => {
+        if(seq !== renderSeq) return;              // 已有更新的渲染接手，本次作废
+        if(!note.value || !contentEl.value) return;
+        const content = note.value.content || '';
+        contentEl.value.innerHTML = '';
+        if(!content.trim()) return;
 
-    const dark = resolvedTheme.value === 'dark';
-    const Vditor = await loadVditor();
-    await Vditor.preview(contentEl.value, content, {
-        mode: dark ? 'dark' : 'light',
-        hljs: {style: dark ? 'github-dark' : 'github'},
-        anchor: 1,
-        cdn: '/static/vendor/vditor'
-    });
+        const dark = resolvedTheme.value === 'dark';
+        const Vditor = await loadVditor();
+        if(seq !== renderSeq) return;
+        await Vditor.preview(contentEl.value, content, {
+            mode: dark ? 'dark' : 'light',
+            hljs: {style: dark ? 'github-dark' : 'github'},
+            anchor: 1,
+            cdn: '/static/vendor/vditor'
+        });
+    }).catch(e => console.error('渲染笔记内容失败', e));
+    return renderChain;
 };
 
 const loadNote = async (id) => {
