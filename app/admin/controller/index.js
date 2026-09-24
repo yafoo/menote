@@ -8,7 +8,7 @@ const DIST_HTML = join(__dirname, '../../../public/static/dist/admin.html');
 class Index extends Controller
 {
     middleware = [
-        '/install/check'
+        '/auth/check'
     ];
 
     async _init() {

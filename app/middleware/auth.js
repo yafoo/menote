@@ -93,6 +93,15 @@ class Auth extends Middleware
         this.$logger.warning('Unauthorized access to private note file: ' + notefile);
         this.ctx.status = 403;
     }
+
+    // 安装验证
+    async check() {
+        if(!this.$config.lock) {
+            this.$redirect('/install');
+        } else {
+            await this.$next();
+        }
+    }
 }
 
 module.exports = Auth;

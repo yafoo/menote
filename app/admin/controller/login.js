@@ -3,7 +3,7 @@ const {Controller} = require('jj.js');
 class Login extends Controller
 {
     middleware = [
-        '/install/check'
+        '/auth/check'
     ];
 
     async index() {

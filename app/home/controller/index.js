@@ -24,16 +24,20 @@ const DIST_HTML = join(__dirname, '../../../public/static/dist/home.html');
  *
  * 代价：SPA 没有服务端渲染，<title> 只能前端设置，搜索引擎收录不如原 SSR。
  */
-class Base extends Controller
+class Index extends Controller
 {
     middleware = [
-        '/install/check'
+        '/auth/check'
     ];
 
     // 原 SSR 版本在这里查站点配置和公开分类树并 $assign 给模板。
     // SPA 后这两份数据由前端调 /api/pub/config 拉取，服务端不必再查
     // ——省掉每次前台页面加载的 2 次数据库查询
     async _init() {}
+
+    async index() {
+        return await this.spa();
+    }
 
     /**
      * 输出前台 SPA 外壳
@@ -51,4 +55,4 @@ class Base extends Controller
     }
 }
 
-module.exports = Base;
+module.exports = Index;
