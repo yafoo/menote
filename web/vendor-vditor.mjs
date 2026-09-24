@@ -170,8 +170,19 @@ for(const f of ['index.js', 'method.min.js']) {
         // https://unpkg.com/vditor/dist/images/logo.png，它不受 cdn 选项影响，
         // 也改不了——只能记一笔：纯离线环境下这个面板里的 logo 是裂图
         if(raw.includes('://')) continue;
-        // 去掉查询串（如 katex.min.js?v=0.16.9）与首尾斜杠，再剥掉 dist/ 前缀
-        const rel = raw.split('?')[0].replace(/^\/+|\/+$/g, '').replace(/^dist\//, '');
+        // 去掉查询串（如 katex.min.js?v=0.16.9）与首尾斜杠，再剥掉 dist/ 前缀。
+        // 反斜杠必须一并归一：vditor 源码里有 ".../dist/index.css\"/>" 这种
+        // 转义引号的写法，上面的正则不认 JS 转义，会把转义用的那个 \ 一起吞进来
+        // —— rel 于是变成 "index.css\"。
+        //    Windows：结尾的 \ 被当成路径分隔符默默吃掉，stat 照样成功 →
+        //             本地构建永远"通过"，坑被完全掩盖
+        //    Linux：  \ 是字面字符，dist/index.css\ 不存在 → 被判 missing →
+        //             CI/Docker 直接 exit 1
+        // 所以这里统一把 \ 当分隔符转成 /，两种平台行为就一致了
+        const rel = raw.split('?')[0]
+            .replace(/\\/g, '/')
+            .replace(/^\/+|\/+$/g, '')
+            .replace(/^dist\//, '');
         if(!rel) continue;
         referenced.add(rel.replace(/\$\{(\w+)\}/g, (_, k) => PLACEHOLDER[k] ?? `\u0000${k}`));
     }
