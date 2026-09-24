@@ -23,11 +23,13 @@ MeNote 是一个轻量级个人笔记知识库系统，支持 Markdown 笔记、
 - **端口**：3107（写死在 `server.js`）
 
 ### 前端
-- **框架**：Vue 3（运行时编译模板，无构建步骤）
-- **UI**：Element Plus
-- **编辑器**：Vditor
-- **图谱**：vis-network
-- **admin SPA**：单文件 `public/static/admin/admin.js`
+- **框架**：Vue 3 + Vite（**前后台都是 SFC 工程，无运行时编译模板**）
+- **UI**：Element Plus（**仅后台**；前台不引，体积考虑）
+- **编辑器**：Vditor（后台编辑用，前台详情页只调 `Vditor.preview`）
+- **图谱**：vis-network（前后台共用同一份 `vendor-vis` chunk）
+- **双入口**：`web/src/admin/` → `admin.html`；`web/src/home/` → `home.html`，都构建到 `public/static/dist/`
+  （前台源码目录叫 **home** 不是 public——`public/` 是 jj.js 的静态目录，同名极易看混）
+- **路由模式**：后台 hash（`#/admin/...`）；前台 **history**（要保住 `/note/123.html` 这类干净 URL）
 
 ### Android 端
 - **工程路径**：`android/`（包名 `com.menote.p2p`，当前 v2.3 = versionCode 13）
@@ -44,30 +46,139 @@ menote/
 ├── lib/p2p.js             # P2P 服务（@number0/iroh，随主服务启动，ALPN 'menote-p2p/1'）
 ├── android/               # Android 客户端工程（git 随主项目追踪）
 ├── app/
-│   ├── admin/             # 后台：controller/{index,login}.js + middleware/auth.js + view/*.htm
-│   ├── api/controller/    # REST API：base.js（cookie 或 Bearer token 认证基类）、note/cate/search/graph/site/token/user/upload/p2p.js
-│   ├── app/               # 前台 SSR
+│   ├── admin/             # 后台：controller/{index,login}.js + middleware/auth.js + view/login_index.htm
+│   ├── api/controller/    # REST API：base.js（cookie 或 Bearer token 认证基类）、note/cate/search/graph/site/token/user/upload/p2p.js、pub.js（前台公开，免认证）
+│   ├── app/               # 前台：controller/ 全是薄壳，只输出 SPA 外壳（原 SSR 的 view/ 已于 2026-09-23 删除）
 │   ├── install/           # 安装向导（config/lock.js 判断已安装）
-│   ├── middleware/        # auth.js（cookie + token 两级认证）
+│   ├── middleware/        # auth.js（cookie + token 两级认证 + pub 放行）
 │   └── model/             # note/cate/site/token/user.js（Model 基类，this.db 链式查询）
 ├── config/                # app.js(base_dir/static_dir)、db.js(sqlite)、routes.js、view.js、lock.js
 ├── data/                  # menote.db + p2p-key.bin（节点密钥）+ p2p-allow.json（白名单）
-├── docker/                # Docker 构建文件（Dockerfile、Run.sh、.dockerignore）
+├── docker/                # Docker 构建文件（Dockerfile、Run.sh、Dockerfile.dockerignore）
 ├── fpk/                   # 飞牛 fnOS FPK 应用打包目录（详见下方"飞牛 FPK 打包"章节）
-├── public/static/admin/   # admin SPA：admin.js + admin.css（含移动端媒体查询）
-├── public/static/common/  # vue/element-plus/vditor/sortablejs 等本地 vendor
+├── web/                   # 前端工程（Vite + Vue3 SFC，详见下方"前端构建"章节）
+│   ├── vite.config.mjs    # root=web、双入口、产物→public/static/dist、dev proxy→3107
+│   ├── admin.html         # 后台入口（构建产出 public/static/dist/admin.html）
+│   ├── home.html          # 前台入口（构建产出 public/static/dist/home.html）
+│   ├── vendor-vditor.mjs  # 构建时从 node_modules 生成 Vditor 运行时资源（白名单式，约 9.8M）
+│   ├── src/admin/         # 后台源码：main.js / App.vue / api / store / router / components / views
+│   └── src/home/          # 前台源码：main.js / App.vue / api / store / router / utils / styles / components / views
+├── public/static/dist/    # 【构建产物，git 忽略】hash 化的 js/css + admin.html + home.html
+├── public/static/vendor/  # 【构建产物，git 忽略】Vditor 运行时资源（lute/icons/i18n…）
 └── public/upload/         # 用户上传的附件
 ```
+
+> `public/static/common/`（旧的运行时编译 vendor：vue/element-plus/vditor/sortablejs）已于 2026-09-23 前台迁移完成后删除——前后台都不再需要它。
+
+## 前端构建（Vite）
+
+前后台都已从"运行时编译"迁到标准 Vite + Vue SFC 工程，源码在 `web/`（双入口）。
+
+```bash
+npm run build        # 生成 Vditor 资源 + Vite 构建（两个入口）→ public/static/dist/
+npm run dev:web      # Vite dev server（5173），proxy 到 3107
+npm run test:smoke   # 前台 SPA 冒烟测试（需服务已在 3107 运行）
+```
+
+**硬规则**：改了 `web/` 下的任何文件，**必须重新 `npm run build`** 才对 `http://…:3107/` 与 `/admin` 生效——页面加载的是 `public/static/dist/` 里的 hash 产物，不是源码。
+
+要点：
+- `@` 别名指向 `web/src`，所以内部引用写成 `@/admin/store/index.js`、`@/home/store/index.js` 这种形式
+- `public/static/dist`、`public/static/vendor` 都在 `.gitignore` 与 `docker/Dockerfile.dockerignore` 里；Docker 镜像由 `Dockerfile` 的 `web` 阶段现场构建（`node:22-bookworm-slim`，避开 Vite 8/Rolldown 的 musl 二进制问题）
+- 后台控制器 `app/admin/controller/index.js` 直接读 `public/static/dist/admin.html` 输出（不再走 `$fetch()` 模板渲染），鉴权仍在 `_init`
+- **`publicDir: false`**：`public/` 归 jj.js 独占，绝不能让 Vite 把它当 publicDir 整份复制进产物。副作用是模板里的 `<img src="/logo.png">` 会被 Vite 当构建期资源去解析并报 `UNRESOLVED_IMPORT`，因此 `vite.config.mjs` 里显式关掉了 `transformAssetUrls.img`
+- Vditor 的 `cdn` 指向 `/static/vendor/vditor`：它运行时仍按 cdn 动态加载 lute/icons/i18n/主题等资源，**其中 icons 走同步 XHR，因此 cdn 必须同源**（换成独立域名会因 CORS 挂掉）
+- 分包用 Rolldown 的 `codeSplitting.groups`（`vendor-vue` / `vendor-element-plus` / `vendor-vditor` / `vendor-vis` / `vendor`），目的是让缓存更耐用；**与 `advancedChunks` 同时指定时后者被忽略**
+- Element Plus **按需引入**：`web/src/admin/main.js` 里显式注册 30 个组件 + 33 行单组件 style import，`@element-plus/icons-vue` 逐个 import。**新增组件必须同时加到 `COMPONENTS` 和 style import 两处**，否则模板里是未解析的自定义元素（生产构建无警告，静默白屏）。`ElLoading` 是插件不是组件，`v-loading` 要 `app.use(ElLoading)` 单独注册
+
+## 前台 SPA 架构（2026-09-23 迁移）
+
+前台原来是 jj.js 模板 SSR（`app/app/view/*.htm`），现已全部迁到 Vue SPA。
+
+### 服务端：薄壳控制器
+
+`config/routes.js` 里 5 条前台路由**必须保留**：
+
+```js
+{url: '/',             path: 'app/index/index'},
+{url: '/note/:id.html', path: 'app/note/note',  name: 'note'},
+{url: '/cate/:id',      path: 'app/cate/cate',  name: 'cate'},
+{url: '/search',        path: 'app/search/search'},
+{url: '/graph',         path: 'app/graph/graph'}
+```
+
+它们现在全是 `return await this.spa();`（`app/app/controller/base.js` 的 `spa()` 读 `public/static/dist/home.html` 输出）。
+
+**为什么不能删**：前台用 history 路由，用户直接访问或刷新 `/note/123.html` 时浏览器先请求服务端；服务端没有对应路由就 404，此时 SPA 外壳还没加载，前端路由根本没机会介入。
+
+保留 1:1 的控制器文件（而不是全指向同一个 action）是为了：路由名不变、将来某页要加服务端逻辑（如详情页注入 SSR meta）时有现成位置。
+
+代价：**没有 SSR，`<title>` 只能前端用 `document.title` 设**，搜索引擎收录不如原 SSR。
+
+### 前端：`web/src/home/`
+
+- 入口 `web/home.html` → 构建产出 `public/static/dist/home.html`
+- **不引 Element Plus**（前台只要轻量样式，`web/src/home/styles/home.css` 从旧的 `public/static/app/style.css` 迁移而来，类名保持不变）
+- `router/index.js` 用 **history 模式**，5 条路由全懒加载；详情页路径是自定义正则 `/note/:id(\\d+).html`
+- `store/index.js` 是裸 `reactive`（不是 Pinia）——前台只有"站点配置 + 分类树"这点共享数据，不划算引状态库
+- 详情页 `NoteView.vue` **动态 import** `vditor` + `vditor/dist/index.css`，加载后缓存 Promise，同会话切笔记不重复请求
+- 图谱页 `GraphView.vue` **动态 import** `vis-network/standalone`（615 kB 只在 `/graph` 下载）
+
+### 公开接口：`app/api/controller/pub.js`（免认证）
+
+`app/middleware/auth.js` 对 `controller === 'pub'` 直接放行。因此**每个方法都必须自己保证只暴露公开数据**——本项目的"公开"定义是**分类级开关 `menote_cate.is_public = 1`**（没有笔记级开关）。新增方法时自查三件事：
+
+1. 是否 `INNER JOIN cate` 且过滤 `is_public = 1`（用 LEFT JOIN 会让未分类笔记漏出来）
+2. 返回字段里有没有 `content` / 附件路径这类不该给匿名用户的东西
+3. 有没有间接泄露私密笔记的**存在**（数量、标题、ID、链接关系）
+
+已有方法：`config`（站点白名单 key + 公开分类树）/ `notes` / `note` / `search` / `graph`。
+
+**迁移时顺带修掉的 3 处泄露**（旧 SSR 实现就有）：
+
+| 位置 | 旧行为 | 现在 |
+|---|---|---|
+| `pub.graph` 的边 | `note_link` 全表 select → 把「私密↔私密」的边吐给匿名用户，等于泄露私密笔记数量与关联结构 | 四个 INNER JOIN 把两端都卡在 `is_public=1` |
+| 反向链接 | `getBacklinks` 会带出私密笔记标题 | 改用 `getPublicBacklinks` |
+| 站点配置 | `menote_site` 整表返回（管理员可自由加 key，等于替他决定"这些都能公开"） | 白名单 5 个 key：`sitename`/`description`/`keywords`/`siteurl`/`beian` |
+
+### Vditor 运行时资源（`web/vendor-vditor.mjs`）
+
+`import Vditor from 'vditor'` 只拿到编辑器本体（`package.json` 的 `main = dist/index.js`，被 Vite 打进 admin.js）。**Vditor 在运行时还会按 `options.cdn` 动态加载 22 处子资源**——lute（Markdown 引擎）、icons（工具栏图标，同步 XHR）、i18n、预览 iframe 的 index.css/method.min.js、katex/mermaid 等。所以 `public/static/vendor/vditor` 这个目录**省不掉**。
+
+为什么不直接用官方默认的 `https://unpkg.com/vditor@<版本>`：MeNote 有 P2P 直连和纯内网部署场景，没外网时 lute/icons 拉不到 → **编辑器直接打不开**（不是降级）。所以自托管。
+
+脚本是**白名单式**复制（不是全量），dist 原本 22.6M，剔掉三块浪费后约 9.6M：
+
+| 剔除项 | 体积 | 依据 |
+|---|---|---|
+| `dist/index.js` / `index.min.js` / `method.js` | 1.1M | index.js 已被 Vite 打进 bundle、index.min.js 无人引用、预览 iframe 引的是 method.min.js——这三份在 vendor 目录里永远不会被请求 |
+| 11 种语言包只留 `zh_CN.js`、两套图标只留 `ant.js` | 0.08M | `NoteEditor.vue` 的 `lang:'zh_CN'` + Vditor 默认 `icon:'ant'` |
+| 76 个 hljs 主题只留 github 系 | 1.19M | Vditor 默认 `preview.hljs.style:'github'` |
+| 低频图表渲染器（见 `ENABLED_OPTIONAL`） | 11.2M | 默认只开 mermaid |
+
+**改 Vditor 选项时必须同步改脚本里的白名单**（`LANG` / `ICON` / `CODE_THEMES` / `CONTENT_THEMES`），否则运行时 404。
+
+脚本内置**自检**：扫描 `dist/index.js` 与 `dist/method.min.js` 里所有 `/dist/...` 字面量，逐条核对产物里是否存在，缺了就报错退出（白名单漏项只在用户写特定语法时才暴露，光看"构建成功"发现不了）。版本戳含白名单指纹，且**等自检通过后才落盘**。
+
+想恢复某个渲染器：把键名加进 `ENABLED_OPTIONAL`（`mermaid` / `graphviz` / `echarts` / `markmap` / `abcjs` / `smiles` / `flowchart` / `wavedrom` / `plantuml` / `mathjax`）。关掉的后果只是「该 ``` 代码块回落成源码显示」，不影响编辑保存。
+
+已知局限：Vditor 的「关于」面板硬编码了 `https://unpkg.com/vditor/dist/images/logo.png`（不走 cdn 选项，改不了），纯离线环境下该 logo 是裂图。
+
 
 ## 关键约定
 
 ### 1. 改完代码不直接提交 git
 改完停在未提交状态，汇报改动等待用户审查。用户明确说"提交"才提交。
 
-### 2. admin SPA 模板变量必须 `setup()` return
-本项目模板是**运行时编译**（非 SFC），`setup()` 未 return 的变量在模板里是 `undefined`，读属性直接抛 `TypeError` 使整个子树渲染中断。
+### 2. 前后台都是 SFC，不再有"忘 return"问题
+2026-09-23 起后台与前台都已迁到 Vite + SFC（`<script setup>` 自动暴露绑定），原先"`setup()` 未 return 导致整棵子树白屏"的坑从根上消失。
 
-**案例**：2026-09-07 适配手机端时 `NoteEditor` 引用 `store.isMobile` 忘 return `store`，导致编辑器全白，控制台报 `Cannot read properties of undefined (reading 'isMobile')`。
+**历史案例（迁移前）**：2026-09-07 适配手机端时 `NoteEditor` 引用 `store.isMobile` 忘 return `store`，导致编辑器全白，控制台报 `Cannot read properties of undefined (reading 'isMobile')`。
+
+**现在的等价陷阱**：改用 `<script setup>` 后，模板里用到的变量必须在 `<script setup>` 顶层有定义或 import——漏 import 会是同样的白屏症状。
+
+**排查方法**：生产构建里 Vue 不会输出 "Failed to resolve component" 警告（dev-only），未注册/未 import 的东西会以原生自定义元素原样留在 DOM 里。所以「DOM 里出现 `el-` / `router-` / `view-` 前缀的标签」基本就等于组件没解析。`npm run test:smoke` 内置了这条判据。
 
 ### 3. 签名密钥绝不进 git
 - `android/menote-p2p.jks` 已用 `git filter-repo` 从历史抹除并 force push
@@ -123,17 +234,40 @@ npm 必须用 `npm.cmd`（PowerShell 5.1 执行策略禁 `npm.ps1`，报 "runnin
 - `data/menote.db` 表全部 `menote_` 前缀（`menote_user`/`menote_note`/`menote_cate`/`menote_site`/`menote_token`/`menote_attach`/`menote_note_link`）
 - `lib/` 不在框架自动加载范围，`server.js` 手动 require
 
-## admin SPA 改动模式
+## SPA 改动模式（前后台共用套路）
 
-### 组件结构
-`public/static/admin/admin.js` 单文件——顶部 `const {createApp, ref, ...} = Vue` 解构、统一 `request()` 封装、全局 `store` reactive、各页面组件对象（template 字符串 + setup()）。
+### 目录结构
+```
+web/src/admin/            # 后台（hash 路由，引 Element Plus）
+├── main.js              # 入口：createApp + Element Plus 按需注册 + 全局图标注册
+├── App.vue              # el-config-provider(zhCn) + <router-view/>
+├── api/index.js         # request() 统一请求封装 + api 对象（export）
+├── store/index.js       # 全局 reactive store（export store，未用 Pinia）
+├── router/index.js      # hash 路由 + window.__routerPush 侧栏跳转桥，全部懒加载
+├── permissions.js       # TOKEN_PERM_GROUPS
+├── components/          # CategoryTree / NoteList / NoteEditor
+├── views/               # Workspace / SiteSettings / TokenManage / UserProfile / P2pManage / GraphView
+└── styles/admin.css     # 桌面样式 + 末尾移动端媒体查询块
 
-### 加新页面五步流程
-1. 写组件对象
-2. `routes` 数组加 `{path: '/admin/xxx', component: Xxx}`
+web/src/home/             # 前台（history 路由，不引 Element Plus）
+├── main.js / App.vue    # 入口 + header/nav/搜索/footer 布局
+├── api/index.js         # 全走 /api/pub/*
+├── store/index.js       # reactive + init() + setTitle()
+├── router/index.js      # history 路由，5 条全懒加载
+├── utils/index.js       # formatTime / splitTags / flattenCates
+├── components/          # NoteList（首页/分类/搜索三页共用，prop 控制元信息）
+├── views/               # HomeView / CateView / SearchView / NoteView / GraphView
+└── styles/home.css      # 从旧 public/static/app/style.css 迁移，类名不变
+```
+
+### 加新页面流程（以 admin 为例）
+1. 在 `views/` 写 `Xxx.vue`（`<template>` + `<script setup>`）
+2. `router/index.js` 加 `{path: '/admin/xxx', component: () => import(...)}`（懒加载）
 3. 侧栏 `tree-footer-actions` 加入口按钮
-4. CSS 加进 `admin.css` 桌面区 + 移动端媒体查询块
-5. bump `index_index.htm` 的 `?v=`（admin.js 和 admin.css 都有）
+4. CSS 加进 `styles/admin.css` 桌面区 + 移动端媒体查询块
+5. `npm run build`（产物名带 hash，无需再手工 bump `?v=`）
+
+前台同理，但**多一步**：若新增的是**顶级 URL**（如 `/tag/:name`），必须同时在 `config/routes.js` 加服务端路由指向某个薄壳控制器，否则直接访问/刷新会 404（见"前台 SPA 架构"）。
 
 ### 移动端架构（≤768px 单栏视图栈）
 - `store.isMobile` / `mobileView('list'|'editor')` / `mobileSidebarOpen`
@@ -141,7 +275,7 @@ npm 必须用 `npm.cmd`（PowerShell 5.1 执行策略禁 `npm.ps1`，报 "runnin
 - 操作按钮触屏常显，Vditor 工具栏横滚
 - 弹窗 `92vw`，设置/Token 页有返回键
 
-改布局前先读 `admin.css` 末尾的移动端媒体查询块。
+改布局前先读 `styles/admin.css` 末尾的移动端媒体查询块。
 
 ## API 认证两级
 
@@ -209,7 +343,7 @@ admin 显示：本节点 ID 主显前 10 位短 ID（`shortNodeId` computed）�
 ## 开发注意事项
 
 ### 服务器重启
-3107 端口服务由用户经宝塔启动（`D:\BtSoft\nodejs\nodejs\node.exe .\server.js`），非 agent 启动。改了后端代码需请用户重启或确认；静态文件（`public/`）改盘即生效，无需重启。改前端 JS 后记得 bump `index_index.htm` 里 admin.js 的 `?v=` 版本参数防手机端缓存。
+3107 端口服务由用户经宝塔启动（`D:\BtSoft\nodejs\nodejs\node.exe .\server.js`），非 agent 启动。改了后端代码需请用户重启或确认；静态文件（`public/`）改盘即生效，无需重启。改前端（`web/`）后必须 `npm run build`，产物名带 hash 无需手工 bump 版本参数。
 
 ### Android 构建
 ```powershell
@@ -275,11 +409,12 @@ fnpack build    # 生成 menote.fpk
 **注意事项**：
 - 容器重建不会更换节点 ID（密钥在数据卷中），手机端无需重新配对
 - `config/lock.js` 必须排除（否则新用户进不了安装向导）
-- `data/` 和 `public/upload/` 必须在 `.dockerignore` 排除
+- `data/` 和 `public/upload/` 必须在 `docker/Dockerfile.dockerignore` 排除
+  （⚠️ 文件名不能改成 `docker/.dockerignore`：Docker 只认「上下文根目录的 `.dockerignore`」或「与 Dockerfile 同目录、以 Dockerfile 名为前缀的 `Dockerfile.dockerignore`」，子目录里的裸 `.dockerignore` 会被静默忽略，过滤失效后构建上下文从 ~30MB 涨回 ~800MB）
 
 ## 常见陷阱
 
-1. **admin 模板变量忘 return** → 整个子树渲染中断，控制台报 `Cannot read properties of undefined`
+1. **SFC 模板里用了没 import / 没定义的变量** → 整棵子树渲染中断（迁移前的等价形态是"`setup()` 忘 return"，见"关键约定 2"）
 2. **测 API 没带 AJAX 头** → 拿到 HTML 而不是 JSON（误以为是路由故障）
 3. **测试脚本没放项目根** → config/app/model 全部加载不到，404
 4. **P2P 测试没设隔离目录** → 误删真实密钥/白名单，已配对数据丢失
@@ -287,6 +422,10 @@ fnpack build    # 生成 menote.fpk
 6. **删笔记时没同步清理附件** → `attach` 表孤儿数据 + 磁盘文件泄漏
 7. **Android 端 `buildRequest` 透传 Content-Length** → 双 CL 头，POST 全挂
 8. **节点 ID 编码混用** → 白名单 key 与查询 key 不一致，已授权节点 403
+9. **改了 `web/` 没 `npm run build`** → 页面还是旧产物（hash 没变，浏览器也未必重取）
+10. **动了 `app/app/controller/*` 或 `config/routes.js` 的前台路由** → history 路由下直接访问/刷新即 404，`npm run test:smoke` 第 1 组用例专门盯这个
+11. **jj.js 的 `where(where, logic)` 只接受对象条件** → 传 `where('(sql...)', [params], 'or')` 会被静默丢弃（第三个参数不存在），落到 `logic` 上后报 `item[1].toLowerCase is not a function`
+12. **多条件 OR 查询的顺序** → jj.js 只给**第一个** `where()` 自动加括号。`where({is_public:1}).where({title like}).where({content like,'or'})` 生成的是 `is_public=? AND title LIKE ? OR content LIKE ? OR ...`，因 AND 优先级高于 OR，**会把私密数据搜出来**。含 OR 的组必须整体放在第一个 `where()` 里
 
 ## 许可证
 

@@ -26,6 +26,14 @@ const PERM_MAP = {
 class Auth extends Middleware
 {
     async api() {
+        // 前台公开接口：匿名可访问，不做任何认证。
+        // ⚠️ 放行意味着 pub 控制器自己承担全部数据边界责任——它的每个方法都必须
+        // 只返回 is_public=1 分类下的数据（见 app/api/controller/pub.js 顶部说明）。
+        // 新增控制器时若想走这条路，请确认它同样没有写操作、不碰私密数据。
+        if(this.ctx.params.controller === 'pub') {
+            return await this.$next();
+        }
+
         // 先检查 Cookie 认证（管理后台）：不受 token 权限限制，拥有全部权限
         if(await this.$model.user.is_login()) {
             this.$logger.debug('Cookie 认证成功，跳过 token 认证');

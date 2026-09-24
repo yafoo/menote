@@ -1,21 +1,11 @@
 const Base = require('./base');
 
+// 搜索页 /search?q= —— 已迁到 Vue SPA，这里只输出 SPA 外壳
+// 搜索由前端调 /api/pub/search 完成（关键词从 location query 里取）
 class Search extends Base
 {
     async search() {
-        const q = this.$request.get('q', '');
-        const cateId = this.$request.get('cate_id', 0);
-        
-        let notes = [];
-        if(q) {
-            notes = await this.$model.note.searchNotes(q, cateId);
-        }
-        
-        this.$assign('q', q);
-        this.$assign('cateId', cateId);
-        this.$assign('notes', notes);
-        this.$assign('title', '搜索: ' + q);
-        await this.$fetch();
+        return await this.spa();
     }
 }
 

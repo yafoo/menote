@@ -7,4 +7,8 @@ data/p2p-key.bin
 data/p2p-allow.json
 config/lock.js
 public/upload
+# 前端构建产物（web/ 由 Vite 构建生成）
+public/static/dist
+public/static/vendor
 fpk/menote.fpk
+.workbuddy-ai

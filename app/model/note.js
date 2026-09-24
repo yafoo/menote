@@ -50,6 +50,28 @@ class Note extends Model {
             .where({'n.id': id, 'c.is_public': 1})
             .find();
     }
+
+    /**
+     * 获取公开笔记列表（前台用，分页）
+     * 与 getPublicNotes 的区别：返回 [列表, 分页对象]，且**不含 content**
+     * （正文可能很大，列表页用不上）
+     */
+    async getPublicNoteList(options = {}) {
+        let query = this.db.table('note n')
+            .field('n.id, n.title, n.keywords, n.add_time, n.update_time, n.cate_id, c.name as cate_name')
+            .join('cate c', 'n.cate_id=c.id', 'inner')
+            .where({'c.is_public': 1});
+
+        if(options.cate_id) {
+            query = query.where({'n.cate_id': options.cate_id});
+        }
+        if(options.keyword) {
+            query = query.where('n.title like ?', ['%' + options.keyword + '%']);
+        }
+
+        query = query.order('n.is_pinned', 'desc').order('n.add_time', 'desc');
+        return await query.paginate({page: options.page, page_size: options.rows});
+    }
     
     /**
      * 保存笔记（新增或更新），同时解析双向链接
@@ -113,6 +135,9 @@ class Note extends Model {
     
     /**
      * 获取反向链接
+     *
+     * ⚠️ 不区分公开/私密，会返回私密笔记的标题 —— 只可用于后台。
+     * 前台一律用 getPublicBacklinks，否则公开笔记会泄露"有哪些私密笔记引用了它"
      */
     async getBacklinks(noteId) {
         return await this.db.table('note n')
@@ -121,26 +146,59 @@ class Note extends Model {
             .where({'l.target_id': noteId})
             .select();
     }
+
+    /**
+     * 获取反向链接（前台用）
+     * 只返回来源笔记所属分类 is_public=1 的，避免泄露私密笔记标题
+     */
+    async getPublicBacklinks(noteId) {
+        return await this.db.table('note n')
+            .field('n.id, n.title')
+            .join('note_link l', 'l.source_id=n.id', 'inner')
+            .join('cate c', 'n.cate_id=c.id', 'inner')
+            .where({'l.target_id': noteId, 'c.is_public': 1})
+            .select();
+    }
     
     /**
-     * 搜索笔记
+     * 搜索笔记（前台用）
+     *
+     * 实现说明（踩过的坑，改之前先读）：
+     *
+     * 1. jj.js 的 where() 只接受 **对象** 形式的条件——_parseWhere 内部是
+     *    Object.entries(whereList)，传字符串会被逐字符拆成键值对，直接抛
+     *    `item[1].toLowerCase is not a function`。
+     *
+     * 2. 三条 ['like', ...] 串 or 时，SQL 里 and 优先级高于 or，如果不加括号，
+     *    `c.is_public = ? and title like ? or content like ? or keywords like ?`
+     *    会被解析成 (公开 and 标题命中) or 正文命中 or 标签命中
+     *    —— **私密笔记只要正文命中就会被搜出来**。
+     *
+     * 3. 所以这里**故意把 OR 组放在第一个 where()**：_parseWhere 结尾有
+     *    `where.length > 1 && (where[0] = '(' + where[0] + ')')`，
+     *    只有第一项会被自动加括号。后面再追加 is_public / cate_id 这些 AND 条件，
+     *    生成的 SQL 就是
+     *      where (title like ? or content like ? or keywords like ?) and c.is_public = ? ...
+     *    ⚠️ 调整顺序会破坏括号，别把 OR 组挪到后面。
      */
     async searchNotes(q, cateId = 0) {
+        const like = '%' + q + '%';
+
         let query = this.db.table('note n')
             .field('n.id, n.title, n.keywords, n.add_time, c.name as cate_name')
-            .join('cate c', 'n.cate_id=c.id')
+            .join('cate c', 'n.cate_id=c.id', 'inner')
+            .where({
+                'n.title': ['like', like],
+                'n.content': ['like', like, 'or'],
+                'n.keywords': ['like', like, 'or']
+            })
             .where({'c.is_public': 1});
-        
+
         if(cateId > 0) {
             query = query.where({'n.cate_id': cateId});
         }
-        
-        // 搜索标题、内容、标签
-        return await query
-            .where('(n.title like ? OR n.content like ? OR n.keywords like ?)',
-                ['%' + q + '%', '%' + q + '%', '%' + q + '%'], 'or')
-            .order('n.add_time', 'desc')
-            .select();
+
+        return await query.order('n.add_time', 'desc').select();
     }
 }
 

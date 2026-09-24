@@ -1,17 +1,11 @@
 const Base = require('./base');
 
+// 前台首页 / —— 已迁到 Vue SPA，这里只输出 SPA 外壳
+// 页面数据由前端调 /api/pub/notes 拉取
 class Index extends Base
 {
     async index() {
-        // 首页：最新公开笔记
-        const notes = await this.$model.note.getPublicNotes({
-            order: 'add_time desc',
-            limit: 20
-        });
-        
-        this.$assign('notes', notes);
-        this.$assign('title', '首页');
-        await this.$fetch();
+        return await this.spa();
     }
 }
 

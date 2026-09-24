@@ -1,0 +1,986 @@
+/* MeNote 前台样式
+ *
+ * 设计基调：暖纸书房 —— 简洁、干净、温馨、舒服。
+ *   · 底色用暖纸白（不是冷灰），卡片是干净的白，靠 1px 暖边框分层而不是重阴影
+ *   · 强调色用陶土色（terracotta），取代原来的 Element Plus 冷蓝 #409eff
+ *   · 正文用衬线字体 + 1.9 行高 + 限制行宽，长文读起来不累
+ *   · 所有色值/圆角/阴影集中在 :root 变量里，改主题只动一处
+ *
+ * 两条硬约束：
+ *   1. **不引外部字体/CDN**。本项目有 P2P 直连与纯内网部署场景，外链字体会
+ *      直接挂掉，所以只用系统字体栈。
+ *   2. **不引 Element Plus**。前台只有列表/详情/图谱三种页面，原生 CSS 足够，
+ *      引组件库会让首屏凭空多几百 KB。
+ *
+ * 类名与旧 SSR 模板（public/static/app/style.css）保持一致，组件无需改 class。
+ */
+
+/* ── 设计令牌 ──────────────────────────────────────────────────────── */
+:root {
+    /* 背景与表面 */
+    --bg: #faf7f2;              /* 暖纸底色 */
+    --bg-sunk: #f4efe7;         /* 下沉区域（图谱画布等） */
+    --surface: #ffffff;
+    --surface-warm: #fffdfa;
+
+    /* 文字层级（暖灰，不用纯黑） */
+    --text: #3d3733;
+    --text-2: #6f665e;
+    --text-3: #9c9188;
+    --text-4: #b8ada1;
+
+    /* 描边 */
+    --border: #ece4d9;
+    --border-soft: #f3ede4;
+
+    /* 强调色：陶土 */
+    --accent: #b96a42;
+    --accent-deep: #9c5433;
+    --accent-soft: #f7ece3;     /* 标签底 */
+    --accent-tint: #fdf8f4;     /* 极淡底 */
+
+    /* 阴影：暖色调、低透明度，避免"塑料卡片"感 */
+    --shadow-xs: 0 1px 2px rgba(93, 72, 52, 0.04);
+    --shadow-sm: 0 1px 3px rgba(93, 72, 52, 0.05), 0 1px 2px rgba(93, 72, 52, 0.03);
+    --shadow-md: 0 6px 20px rgba(93, 72, 52, 0.08), 0 2px 6px rgba(93, 72, 52, 0.04);
+
+    /* 圆角 */
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 16px;
+    --r-pill: 999px;
+
+    /* 版心 */
+    --wrap: 860px;
+    --gutter: 24px;
+
+    /* 字体：全部系统栈 */
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+               "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", sans-serif;
+    --font-read: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia,
+                 "Songti SC", "STSong", "Source Han Serif SC", "Noto Serif CJK SC",
+                 "SimSun", serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
+                 "Liberation Mono", "Courier New", monospace;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+html {
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    font-family: var(--font-ui);
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--text);
+    background: var(--bg);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* 选中文字也用暖色 */
+::selection {
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+}
+
+/* 细滚动条（不影响功能，只是更干净） */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+}
+*::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: var(--r-pill);
+    border: 3px solid transparent;
+    background-clip: content-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+    background: var(--text-4);
+    background-clip: content-box;
+}
+
+/* 统一的键盘焦点样式（无障碍，鼠标点击不显示） */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--r-sm);
+}
+
+/* 尊重系统的"减少动效"设置 */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ── 骨架 ─────────────────────────────────────────────────────────── */
+.container {
+    max-width: var(--wrap);
+    margin: 0 auto;
+    padding: 0 var(--gutter);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.main {
+    flex: 1;
+    padding-bottom: 56px;
+}
+
+/* ── 头部 ─────────────────────────────────────────────────────────── */
+.header {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+    padding: 20px 0 18px;
+    margin-bottom: 32px;
+    border-bottom: 1px solid var(--border-soft);
+
+    /* 吸顶 + 毛玻璃。底色带透明度，滚动时下方内容透出来才不突兀 */
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: saturate(1.4) blur(12px);
+    -webkit-backdrop-filter: saturate(1.4) blur(12px);
+}
+
+/* 不支持 color-mix 的老浏览器回退成不透明底色 */
+@supports not (background: color-mix(in srgb, red 50%, blue)) {
+    .header {
+        background: var(--bg);
+    }
+}
+
+.header .logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    font-family: var(--font-read);
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--text);
+    text-decoration: none;
+    transition: opacity 0.2s;
+}
+
+.header .logo:hover {
+    opacity: 0.75;
+}
+
+.header .logo .logo-img {
+    width: 26px;
+    height: 26px;
+    object-fit: contain;
+    border-radius: var(--r-sm);
+}
+
+.header .nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    flex-wrap: wrap;
+}
+
+.header .nav a {
+    color: var(--text-2);
+    text-decoration: none;
+    font-size: 13.5px;
+    padding: 5px 11px;
+    border-radius: var(--r-pill);
+    transition: background 0.18s, color 0.18s;
+    white-space: nowrap;
+}
+
+.header .nav a:hover {
+    color: var(--accent-deep);
+    background: var(--accent-tint);
+}
+
+/* 当前分类高亮：暖底 + 陶土字 */
+.header .nav a.router-link-active {
+    color: var(--accent-deep);
+    background: var(--accent-soft);
+    font-weight: 500;
+}
+
+/* 管理后台入口：淡一点，别抢视线 */
+.header .nav .admin-link {
+    color: var(--text-4);
+    font-size: 13px;
+}
+
+.header .nav .admin-link:hover {
+    color: var(--accent);
+    background: var(--accent-tint);
+}
+
+/* 搜索框 */
+.header .search-form {
+    display: flex;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    padding: 3px 3px 3px 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.header .search-form:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+.header .search-form input {
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: inherit;
+    font-size: 13.5px;
+    color: var(--text);
+    width: 130px;
+    padding: 5px 0;
+}
+
+.header .search-form input::placeholder {
+    color: var(--text-4);
+}
+
+.header .search-form button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: var(--r-pill);
+    background: var(--accent);
+    color: #fff;
+    cursor: pointer;
+    transition: background 0.18s, transform 0.18s;
+}
+
+.header .search-form button svg {
+    display: block;
+}
+
+.header .search-form button:hover {
+    background: var(--accent-deep);
+}
+
+.header .search-form button:active {
+    transform: scale(0.94);
+}
+
+/* ── 页面标题区 ───────────────────────────────────────────────────── */
+/* 区块标题：衬线字 + 左侧一道陶土竖线。
+   试过"文字下方一道短横线"，但 28px 的短横在 4 字标题下看着像没对齐的下划线，
+   改成左侧竖线后装饰意图明确得多。 */
+.section-title {
+    font-family: var(--font-read);
+    font-size: 21px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.3;
+    color: var(--text);
+    display: inline-block;
+    padding-left: 13px;
+    border-left: 3px solid var(--accent);
+}
+
+/* 首页标题行：标题 + 右侧总篇数 */
+.list-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 22px;
+}
+
+.list-count {
+    font-size: 12.5px;
+    color: var(--text-3);
+    white-space: nowrap;
+}
+
+/* ── 笔记列表 ─────────────────────────────────────────────────────── */
+.note-list {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.note-item {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--r-lg);
+    padding: 22px 24px;
+    box-shadow: var(--shadow-xs);
+    transition: border-color 0.22s, box-shadow 0.22s, transform 0.22s;
+}
+
+/* 左侧一道陶土细线，hover 时展开——比整卡变色更含蓄 */
+.note-item::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 22px;
+    bottom: 22px;
+    width: 3px;
+    border-radius: var(--r-pill);
+    background: var(--accent);
+    opacity: 0;
+    transform: scaleY(0.3);
+    transition: opacity 0.22s, transform 0.22s;
+}
+
+.note-item:hover {
+    border-color: var(--border);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.note-item:hover::before {
+    opacity: 1;
+    transform: scaleY(1);
+}
+
+.note-item h3 {
+    font-family: var(--font-read);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.5;
+    margin-bottom: 8px;
+    letter-spacing: 0.005em;
+}
+
+.note-item h3 a {
+    color: var(--text);
+    text-decoration: none;
+    transition: color 0.18s;
+}
+
+/* 标题链接铺满整卡，点哪都能进详情——顺手把可点区域做大了 */
+.note-item h3 a::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: var(--r-lg);
+}
+
+.note-item:hover h3 a {
+    color: var(--accent-deep);
+}
+
+/* 元信息：小圆点分隔，不用竖线（竖线偏硬）。
+   用 `* + *` 而不是 `span + span`，因为分类那项在详情页是 <a>（可点回分类页），
+   写成 span+span 会导致圆点只出现在它之后的那一项上 */
+.note-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 12.5px;
+    color: var(--text-3);
+    margin-bottom: 2px;
+}
+
+.note-meta > * + *::before {
+    content: "·";
+    margin-right: 10px;
+    color: var(--text-4);
+}
+
+.note-meta .cate {
+    color: var(--accent);
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.18s;
+}
+
+.note-meta .cate:hover {
+    color: var(--accent-deep);
+}
+
+/* 标签 */
+.tags {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.tag {
+    background: var(--accent-soft);
+    color: var(--accent-deep);
+    padding: 2px 10px;
+    border-radius: var(--r-pill);
+    font-size: 12px;
+    line-height: 1.7;
+    transition: background 0.18s;
+}
+
+.tag:hover {
+    background: #f1e0d2;
+}
+
+/* ── 笔记详情 ─────────────────────────────────────────────────────── */
+.page-note {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--r-lg);
+    padding: 44px 48px 48px;
+    box-shadow: var(--shadow-sm);
+}
+
+.note-header {
+    margin-bottom: 32px;
+    padding-bottom: 22px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.note-header h1 {
+    font-family: var(--font-read);
+    font-size: 31px;
+    font-weight: 600;
+    line-height: 1.35;
+    letter-spacing: 0.005em;
+    color: var(--text);
+    margin-bottom: 14px;
+}
+
+.note-header .note-meta {
+    font-size: 13px;
+}
+
+.note-header .note-meta .tags {
+    display: inline-flex;
+    margin-top: 0;
+    align-items: center;
+    gap: 6px;
+}
+
+/* 正文：衬线 + 宽行距 + 限制行宽（约 40 个汉字），长文才舒服
+ *
+ * ⚠️ 所有正文规则都带 `.page-note` 前缀（0,2,x），是为了压过 Vditor 自己的
+ * `.vditor-reset h1`（0,1,1）。Vditor 的 CSS 由 NoteView 动态 import，产物里是
+ * 独立 chunk，加载顺序在 public.css 之后——同优先级时后者胜，不加前缀会被它盖掉。
+ * 这里不用 !important，避免以后想局部覆盖时无路可走。 */
+.page-note .note-content {
+    font-family: var(--font-read);
+    font-size: 17px;
+    line-height: 1.9;
+    color: var(--text);
+    padding-left: 0 !important;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+}
+
+.page-note .note-content.vditor-reset {
+    font-family: var(--font-read);
+    font-size: 17px;
+    line-height: 1.9;
+    color: var(--text);
+}
+
+.page-note .note-content h1,
+.page-note .note-content h2,
+.page-note .note-content h3,
+.page-note .note-content h4,
+.page-note .note-content h5,
+.page-note .note-content h6 {
+    font-family: var(--font-read);
+    color: var(--text);
+    font-weight: 600;
+    line-height: 1.45;
+    margin: 1.9em 0 0.7em;
+}
+
+.page-note .note-content h1 { font-size: 1.5em; }
+.page-note .note-content h2 { font-size: 1.3em; }
+.page-note .note-content h3 { font-size: 1.13em; }
+.page-note .note-content h4 { font-size: 1em; }
+
+.page-note .note-content h1:first-child,
+.page-note .note-content h2:first-child,
+.page-note .note-content h3:first-child {
+    margin-top: 0;
+}
+
+.page-note .note-content p {
+    margin: 0 0 1.15em;
+}
+
+.page-note .note-content a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid var(--accent-soft);
+    transition: color 0.18s, border-color 0.18s;
+}
+
+.page-note .note-content a:hover {
+    color: var(--accent-deep);
+    border-bottom-color: var(--accent);
+}
+
+.page-note .note-content strong {
+    font-weight: 600;
+    color: var(--text);
+}
+
+.page-note .note-content ul,
+.page-note .note-content ol {
+    margin: 0 0 1.15em;
+    padding-left: 1.5em;
+}
+
+.page-note .note-content li {
+    margin-bottom: 0.35em;
+}
+
+.page-note .note-content li::marker {
+    color: var(--text-4);
+}
+
+/* 引用块：暖底 + 左侧陶土线 */
+.page-note .note-content blockquote {
+    margin: 1.5em 0;
+    padding: 12px 20px;
+    background: var(--accent-tint);
+    border-left: 3px solid var(--accent-soft);
+    border-radius: 0 var(--r-sm) var(--r-sm) 0;
+    color: var(--text-2);
+}
+
+.page-note .note-content blockquote p:last-child {
+    margin-bottom: 0;
+}
+
+/* 行内代码与代码块 */
+.page-note .note-content code {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--bg-sunk);
+    color: var(--accent-deep);
+    padding: 2px 6px;
+    border-radius: 5px;
+}
+
+.page-note .note-content pre {
+    margin: 1.5em 0;
+    padding: 16px 18px;
+    background: #faf7f2;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--r-md);
+    overflow-x: auto;
+    line-height: 1.65;
+}
+
+.page-note .note-content pre code {
+    background: none;
+    color: var(--text);
+    padding: 0;
+    font-size: 13.5px;
+}
+
+.page-note .note-content hr {
+    margin: 2.2em 0;
+    border: none;
+    border-top: 1px solid var(--border);
+}
+
+.page-note .note-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--r-md);
+    display: block;
+    margin: 1.5em auto;
+}
+
+/* 表格 */
+.page-note .note-content table {
+    width: 100%;
+    margin: 1.5em 0;
+    border-collapse: collapse;
+    font-family: var(--font-ui);
+    font-size: 14px;
+    overflow: hidden;
+    border-radius: var(--r-sm);
+}
+
+.page-note .note-content th,
+.page-note .note-content td {
+    border: 1px solid var(--border);
+    padding: 9px 13px;
+    text-align: left;
+}
+
+.page-note .note-content th {
+    background: var(--bg-sunk);
+    font-weight: 600;
+    color: var(--text);
+}
+
+.page-note .note-content tr:nth-child(even) td {
+    background: #fdfcfa;
+}
+
+/* 反向链接 */
+.backlinks {
+    margin-top: 44px;
+    padding: 20px 22px;
+    background: var(--accent-tint);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--r-md);
+}
+
+.backlinks h3 {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-3);
+    margin-bottom: 12px;
+}
+
+.backlinks ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.backlinks a {
+    display: inline-block;
+    padding: 5px 0;
+    color: var(--accent-deep);
+    text-decoration: none;
+    font-size: 14.5px;
+    transition: color 0.18s, transform 0.18s;
+}
+
+.backlinks a:hover {
+    color: var(--accent);
+    transform: translateX(3px);
+}
+
+/* ── 分类页 ───────────────────────────────────────────────────────── */
+.cate-header {
+    padding: 0 0 24px;
+    margin-bottom: 26px;
+    border-bottom: 1px solid var(--border-soft);
+}
+
+.cate-header h1 {
+    font-family: var(--font-read);
+    font-size: 26px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--text);
+    margin-bottom: 6px;
+}
+
+.cate-desc {
+    font-size: 13px;
+    color: var(--text-3);
+}
+
+/* ── 搜索页 ───────────────────────────────────────────────────────── */
+.search-header {
+    margin-bottom: 22px;
+}
+
+.search-header .section-title {
+    margin-bottom: 6px;
+}
+
+.search-query {
+    font-size: 13.5px;
+    color: var(--text-3);
+}
+
+.search-query strong {
+    color: var(--accent-deep);
+    font-weight: 600;
+}
+
+/* ── 空状态 / 加载态 ──────────────────────────────────────────────── */
+.empty {
+    text-align: center;
+    color: var(--text-3);
+    font-size: 14px;
+    padding: 64px 24px;
+    background: var(--surface);
+    border: 1px dashed var(--border);
+    border-radius: var(--r-lg);
+}
+
+.empty p + p {
+    margin-top: 6px;
+}
+
+/* 加载态：一个旋转的暖色圆环，比干巴巴的"加载中…"舒服 */
+.page-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    text-align: center;
+    color: var(--text-3);
+    font-size: 13.5px;
+    padding: 64px 24px;
+}
+
+.page-loading::before {
+    content: "";
+    width: 22px;
+    height: 22px;
+    border: 2px solid var(--accent-soft);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: menote-spin 0.7s linear infinite;
+}
+
+@keyframes menote-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* 「加载更多」 */
+.load-more {
+    text-align: center;
+    margin-top: 26px;
+}
+
+.load-more button {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 9px 28px;
+    background: var(--surface);
+    color: var(--text-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s, background 0.2s, box-shadow 0.2s;
+}
+
+.load-more button:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent-deep);
+    background: var(--accent-tint);
+    box-shadow: var(--shadow-xs);
+}
+
+.load-more button:disabled {
+    color: var(--text-4);
+    cursor: default;
+    opacity: 0.7;
+}
+
+/* ── 知识图谱 ─────────────────────────────────────────────────────── */
+.graph-container {
+    background: var(--surface);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    box-shadow: var(--shadow-sm);
+}
+
+/* 画布用"下沉"的暖色（比卡片白更深一档），靠色差界定区域。
+   之前画布自己也带 border，和 .graph-container 的边框叠成双层，显得笨重 */
+.graph-network {
+    width: 100%;
+    height: 560px;
+    background: var(--bg-sunk);
+    border-radius: var(--r-md);
+}
+
+.graph-legend {
+    margin-top: 18px;
+    display: flex;
+    gap: 22px;
+    font-size: 12.5px;
+    color: var(--text-2);
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+}
+
+.legend-dot.node {
+    background: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.legend-dot.edge {
+    background: var(--text-4);
+    height: 2px;
+    width: 16px;
+    border-radius: var(--r-pill);
+}
+
+.graph-info {
+    margin-top: 12px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-soft);
+    font-size: 12.5px;
+    color: var(--text-3);
+}
+
+.graph-info strong {
+    color: var(--accent-deep);
+    font-weight: 600;
+}
+
+/* ── 底部 ─────────────────────────────────────────────────────────── */
+.footer {
+    text-align: center;
+    padding: 30px 0 36px;
+    border-top: 1px solid var(--border-soft);
+    color: var(--text-4);
+    font-size: 12.5px;
+}
+
+.footer a {
+    color: var(--text-3);
+    text-decoration: none;
+    transition: color 0.18s;
+}
+
+.footer a:hover {
+    color: var(--accent);
+}
+
+/* ── 响应式 ───────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+    :root {
+        --gutter: 18px;
+        --wrap: 100%;
+    }
+
+    .header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 14px;
+        padding: 16px 0 14px;
+        margin-bottom: 22px;
+    }
+
+    .header .nav {
+        order: 3;
+        gap: 2px;
+    }
+
+    .header .nav a {
+        padding: 5px 9px;
+    }
+
+    .header .search-form {
+        width: 100%;
+        padding-left: 16px;
+    }
+
+    .header .search-form input {
+        flex: 1;
+        width: auto;
+    }
+
+    .section-title {
+        font-size: 19px;
+    }
+
+    .note-item {
+        padding: 18px 18px;
+        border-radius: var(--r-md);
+    }
+
+    .note-item::before {
+        top: 18px;
+        bottom: 18px;
+    }
+
+    .note-item h3 {
+        font-size: 16.5px;
+    }
+
+    .page-note {
+        padding: 26px 20px 30px;
+        border-radius: var(--r-md);
+    }
+
+    .note-header {
+        margin-bottom: 24px;
+        padding-bottom: 18px;
+    }
+
+    .note-header h1 {
+        font-size: 23px;
+    }
+
+    .page-note .note-content,
+    .page-note .note-content.vditor-reset {
+        font-size: 16px;
+        line-height: 1.85;
+    }
+
+    .cate-header h1 {
+        font-size: 22px;
+    }
+
+    .graph-container {
+        padding: 14px;
+        border-radius: var(--r-md);
+    }
+
+    .graph-network {
+        height: 380px;
+    }
+
+    .empty,
+    .page-loading {
+        padding: 48px 20px;
+    }
+}
+
+/* 超小屏（iPhone SE 之类）再收一点 */
+@media (max-width: 380px) {
+    :root {
+        --gutter: 14px;
+    }
+
+    .note-item {
+        padding: 16px 15px;
+    }
+
+    .page-note {
+        padding: 22px 16px 26px;
+    }
+}

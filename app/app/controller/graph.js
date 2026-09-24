@@ -1,27 +1,16 @@
 const Base = require('./base');
 
+// 知识图谱 /graph —— 已迁到 Vue SPA，这里只输出 SPA 外壳
+// 图谱数据由前端调 /api/pub/graph 拉取
+//
+// 原实现（见 git 历史）有两个问题，迁移时已在 app/api/controller/pub.js 修掉：
+//   1. `note_link` 全表 select，会把「私密 ↔ 私密」的链接一并吐给匿名访问者，
+//      泄露私密笔记的数量与关联结构
+//   2. 用 $assign 把 JSON 字符串塞进模板，靠 {{@nodes}} 原样输出，属注入面
 class Graph extends Base
 {
     async graph() {
-        // 获取所有公开笔记和链接数据
-        const nodes = await this.$db.table('note n')
-            .field('n.id, n.title, n.cate_id')
-            .join('cate c', 'n.cate_id=c.id')
-            .where({'c.is_public': 1})
-            .select();
-
-        const links = await this.$db.table('note_link').select();
-
-        // 转换 edges 格式为 vis-network 需要的 {from, to}
-        const edges = links.map(link => ({
-            from: link.source_id,
-            to: link.target_id
-        }));
-
-        this.$assign('nodes', JSON.stringify(nodes));
-        this.$assign('edges', JSON.stringify(edges));
-        this.$assign('title', '知识图谱');
-        await this.$fetch();
+        return await this.spa();
     }
 }
 

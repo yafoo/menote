@@ -13,8 +13,12 @@
 
 # 开发/构建产物，不进生产镜像
 /node_modules          # 避免本地 node_modules 污染构建上下文（多阶段构建会从 deps 阶段复制）
+/public/static/dist    # 前端构建产物：由 web 阶段现场生成，用宿主机的会变陈旧
+/public/static/vendor  # Vditor 运行时资源：同上，构建时从 node_modules 生成
 *.log
 *.tmp.cjs
+.DS_Store
+Thumbs.db
 
 # 源码控制/CI 配置
 /.git
@@ -28,9 +32,11 @@
 # 文档/技能/脚本（非运行时必需）
 /skill
 /scripts
+/test
 /test-data.js
 /jsconfig.json
 /types.js              # jj.js 类型定义，运行时不需要
+/.workbuddy-ai         # AI 助手工作区（记忆/技能），与镜像无关
 
 # docker-compose.yml 是宿主机部署用，不进镜像
 /docker-compose.yml

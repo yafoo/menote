@@ -1,0 +1,533 @@
+<template>
+<div class="category-tree">
+    <div class="tree-header">
+        <span class="tree-title">分类</span>
+        <el-button size="small" text class="tree-add-btn" @click="showAddDialog">
+            <el-icon><Plus /></el-icon>
+        </el-button>
+    </div>
+    <el-tree
+        :data="categories"
+        :props="treeProps"
+        node-key="id"
+        highlight-current
+        default-expand-all
+        :indent="20"
+        draggable
+        :allow-drop="allowDrop"
+        :allow-drag="allowDrag"
+        @node-drop="handleDrop"
+        @node-click="handleNodeClick"
+    >
+        <template #default="{ node, data }">
+            <div class="tree-node">
+                <span class="node-content">
+                    <span v-if="data.icon" class="node-icon">{{ data.icon }}</span>
+                    <span class="node-name">{{ data.name }}</span>
+                    <el-tag v-if="data.is_public" size="small" type="success">公开</el-tag>
+                </span>
+                <span v-if="!data.is_virtual" class="node-actions" @click.stop>
+                    <el-button size="small" text class="node-addnote-btn" @click="createNoteInCate(data.id)">
+                        <el-icon><Plus /></el-icon>
+                    </el-button>
+                    <el-dropdown trigger="click" @command="(cmd) => handleCommand(cmd, data)">
+                        <el-button size="small" text class="node-menu-btn">
+                            <el-icon class="action-icon"><MoreFilled /></el-icon>
+                        </el-button>
+                        <template #dropdown>
+                            <el-dropdown-menu>
+                                <el-dropdown-item command="add">新建子分类</el-dropdown-item>
+                                <el-dropdown-item command="edit">编辑分类</el-dropdown-item>
+                                <el-dropdown-item command="delete" divided>删除分类</el-dropdown-item>
+                            </el-dropdown-menu>
+                        </template>
+                    </el-dropdown>
+                </span>
+            </div>
+        </template>
+    </el-tree>
+
+    <!-- 添加/编辑分类对话框（点遮罩不关：表单防误触 + 防 emoji 弹窗变孤儿） -->
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="400px" append-to-body :close-on-click-modal="false">
+        <el-form :model="cateForm" label-width="80px">
+            <el-form-item label="图标">
+                <div class="icon-selector">
+                    <!-- 直接输入/粘贴 emoji 的输入框（文字放大显示） -->
+                    <el-input
+                        v-model="iconInput"
+                        placeholder="输入 emoji"
+                        class="icon-input"
+                        clearable
+                        @input="onIconInput"
+                    />
+                    <!-- 选择按钮：点开 emoji 分组弹窗（visible 受控，选中即关） -->
+                    <el-popover
+                        :visible="emojiPickerVisible"
+                        trigger="click"
+                        placement="bottom"
+                        :width="300"
+                        @hide="emojiPickerVisible = false"
+                    >
+                        <template #reference>
+                            <el-button class="icon-pick-btn" title="选择 emoji" @click="emojiPickerVisible = !emojiPickerVisible">
+                                <el-icon><Grid /></el-icon>
+                            </el-button>
+                        </template>
+                        <template #default>
+                            <div class="emoji-picker">
+                                <!-- 分组标签：单行横向滑动，不换行 -->
+                                <div class="emoji-groups">
+                                    <span
+                                        v-for="g in emojiGroups"
+                                        :key="g.label"
+                                        class="emoji-group-tab"
+                                        :class="{ active: activeEmojiGroup === g.label }"
+                                        @click="activeEmojiGroup = g.label"
+                                    >{{ g.label }}</span>
+                                </div>
+                                <!-- 当前分组网格（限高滚动） -->
+                                <div class="icon-grid emoji-scroll">
+                                    <span
+                                        v-for="emoji in activeGroupEmojis"
+                                        :key="emoji"
+                                        class="icon-item"
+                                        :class="{ active: cateForm.icon === emoji }"
+                                        @click="selectIcon(emoji)"
+                                    >{{ emoji }}</span>
+                                </div>
+                            </div>
+                        </template>
+                    </el-popover>
+                </div>
+            </el-form-item>
+            <el-form-item label="上级分类">
+                <el-select v-model="cateForm.pid" placeholder="无（作为顶级分类）" clearable filterable>
+                    <el-option
+                        v-for="cate in selectableParents"
+                        :key="cate.id"
+                        :label="cate.name"
+                        :value="cate.id"
+                    />
+                </el-select>
+            </el-form-item>
+            <el-form-item label="名称">
+                <el-input v-model="cateForm.name" placeholder="分类名称" />
+            </el-form-item>
+            <el-form-item label="公开性">
+                <el-switch v-model="cateForm.is_public" active-text="公开" inactive-text="私密" />
+            </el-form-item>
+        </el-form>
+        <template #footer>
+            <el-button @click="dialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="saveCate">保存</el-button>
+        </template>
+    </el-dialog>
+
+    <div class="tree-footer">
+        <div class="user-info" @click="store.navigateFromSidebar('/admin/profile')">
+            <el-icon><User /></el-icon>
+            <span class="username">{{ store.username || '未登录' }}</span>
+        </div>
+        <div class="tree-footer-actions">
+            <el-button size="small" text @click="store.navigateFromSidebar('/admin/settings')" title="站点设置">
+                <el-icon><Setting /></el-icon>
+            </el-button>
+            <el-button size="small" text @click="store.navigateFromSidebar('/admin/tokens')" title="Token 管理">
+                <el-icon><Key /></el-icon>
+            </el-button>
+            <el-button size="small" text @click="store.navigateFromSidebar('/admin/graph')" title="知识图谱">
+                <el-icon><Share /></el-icon>
+            </el-button>
+            <el-button size="small" text @click="store.navigateFromSidebar('/admin/p2p')" title="P2P 管理">
+                <el-icon><Connection /></el-icon>
+            </el-button>
+            <el-button size="small" text @click="goToHome" title="访问前台首页">
+                <el-icon><View /></el-icon>
+            </el-button>
+            <el-button size="small" text @click="logout" title="退出登录">
+                <el-icon><SwitchButton /></el-icon>
+            </el-button>
+        </div>
+    </div>
+</div>
+</template>
+
+<script setup>
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { ref, reactive, computed, watch } from 'vue';
+import { request, api } from '@/admin/api/index.js';
+import { store } from '@/admin/store/index.js';
+
+// 模板 el-tree 的 :data 来源。
+// 迁移前这是 setup() 末尾 return 块里的内联 computed（categories: computed(...)），
+// 改 <script setup> 后必须提到顶层，否则模板拿不到绑定、分类树空白。
+const categories = computed(() => store.categories);
+
+const dialogVisible = ref(false);
+const dialogTitle = ref('添加分类');
+
+// emoji 分组数据：常用组保留原有 30 个；其余按语义分组，覆盖日常分类场景
+const emojiGroups = [
+    { label: '常用', emojis: [
+        '📁', '📚', '📝', '💼', '🎯', '💡', '🔬', '🎨', '🎵', '📷',
+        '🏠', '🌟', '🔥', '💎', '🎁', '📖', '💻', '📊', '📈', '🎓',
+        '🌈', '☕', '🍎', '🚀', '⚡', '🎪', '🎭', '🎲', '🏆', '🔔'
+    ] },
+    { label: '表情', emojis: [
+        '😀', '😂', '😊', '😍', '🤔', '😎', '🥳', '😴', '😢', '😡',
+        '👍', '👎', '👏', '🙏', '💪', '🤝', '✌️', '🤞', '👀', '🧠',
+        '❤️', '💔', '💯', '🎉', '🥰', '😜', '🤗', '😌', '🫡', '🤩'
+    ] },
+    { label: '动植物', emojis: [
+        '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🦁',
+        '🐯', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🦆', '🦉',
+        '🐴', '🦄', '🐝', '🦋', '🐢', '🐍', '🐙', '🦀', '🐬', '🐳',
+        '🌵', '🌲', '🌳', '🌴', '🌱', '🌿', '☘️', '🍀', '🎍', '🌻',
+        '🌷', '🌸', '🌹', '🌺', '🌾', '🍁', '🍄', '🌰', '💐', '🪴'
+    ] },
+    { label: '食物', emojis: [
+        '🍎', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍒', '🍑',
+        '🥭', '🍍', '🥥', '🥝', '🍅', '🥑', '🍆', '🥕', '🌽', '🥔',
+        '🍞', '🥐', '🥨', '🧀', '🍳', '🥓', '🍗', '🍖', '🌭', '🍔',
+        '🍟', '🍕', '🥪', '🌮', '🍜', '🍣', '🍱', '🍚', '🍲', '🍰',
+        '🎂', '🍫', '🍬', '🍭', '🍩', '🍪', '☕', '🍵', '🧋', '🍺'
+    ] },
+    { label: '活动', emojis: [
+        '⚽', '🏀', '🏈', '⚾', '🎾', '🏐', '🏓', '🏸', '🥅', '🎿',
+        '🏊', '🚴', '🏃', '🧘', '🏋️', '🤸', '⛹️', '🤾', '⛳', '🏹',
+        '🎮', '🕹️', '🎲', '🧩', '🎯', '🎨', '🎸', '🎹', '🎺', '🎻',
+        '🥁', '🎤', '🎧', '🎬', '🎭', '🎪', '🎫', '🏆', '🥇', '🏅'
+    ] },
+    { label: '物品', emojis: [
+        '⌚', '📱', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '💾', '💿', '📀',
+        '📷', '📹', '🎥', '📞', '📺', '📻', '⏰', '⏱️', '🔑', '🔒',
+        '🧰', '🔧', '🔨', '🪛', '🧲', '💉', '💊', '🩹', '🚗', '🚕',
+        '🚌', '🏎️', '✈️', '🚀', '🛸', '🚁', '⛵', '🚲', '🛴', '🛵'
+    ] },
+    { label: '自然', emojis: [
+        '🌞', '🌝', '🌚', '⭐', '🌟', '✨', '⚡', '☄️', '🌈', '❄️',
+        '🔥', '💧', '🌊', '☁️', '⛅', '🌪️', '🌫️', '🌙', '🌎', '🌍',
+        '🌏', '🌋', '⛰️', '🏔️', '🏕️', '🏖️', '🏜️', '🏝️', '🌾', '🌿'
+    ] },
+    { label: '符号', emojis: [
+        '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '💗', '💓',
+        '✅', '❌', '❗', '❓', '❕', '💯', '🔔', '🔕', '🎵', '🎶',
+        '➕', '➖', '➗', '✖️', '♾️', '🔴', '🟡', '🟢', '🔵', '⚫'
+    ] }
+];
+const activeEmojiGroup = ref('常用');
+// emoji 选择弹窗受控开关：选中即自动关（trigger=click 与受控 visible 共存时，
+// 点击外部由 @hide 归位，点选图标由 selectIcon 主动关）
+const emojiPickerVisible = ref(false);
+const activeGroupEmojis = computed(() =>
+    (emojiGroups.find(g => g.label === activeEmojiGroup.value) || emojiGroups[0]).emojis
+);
+
+// 手动输入 emoji（输入框）：取首个字符组（emoji 可能是多 code point）
+const iconInput = ref('');
+const onIconInput = (val) => {
+    const v = String(val || '').trim();
+    if(v) {
+        // 用 [...v] 展开 code point（代理对正确处理），取第一个 emoji
+        cateForm.icon = [...v][0];
+    }
+};
+
+// dialog 任何方式关闭（esc/取消/保存/树刷新）时复位 emoji 弹窗——
+// 防止 popover 挂在 body 上变成无锚点的孤儿层
+watch(dialogVisible, (v) => { if(!v) emojiPickerVisible.value = false; });
+
+const cateForm = reactive({
+    id: null,
+    pid: 0,
+    icon: '📁',
+    name: '',
+    is_public: false
+});
+
+// 上级分类可选项：排除自身及其后代（防循环引用）
+const selectableParents = computed(() => {
+    const result = [{ id: 0, name: '无（顶级分类）' }];
+    if(!cateForm.id) {
+        // 新建：所有真实分类均可作上级
+        const walk = (items, prefix = '') => {
+            for(const item of items) {
+                if(item.is_virtual) continue;
+                const label = prefix + (item.icon ? item.icon + ' ' : '') + item.name;
+                result.push({ id: item.id, name: label });
+                if(item.children?.length) walk(item.children, label + ' / ');
+            }
+        };
+        walk(store.categories);
+    } else {
+        const walk = (items, prefix = '', skipBranch = false) => {
+            for(const item of items) {
+                if(item.is_virtual) continue;
+                const isSelf = item.id === cateForm.id;
+                const label = prefix + (item.icon ? item.icon + ' ' : '') + item.name;
+                if(!isSelf && !skipBranch) {
+                    result.push({ id: item.id, name: label });
+                }
+                if(item.children?.length) {
+                    walk(item.children, label + ' / ', skipBranch || isSelf);
+                }
+            }
+        };
+        walk(store.categories);
+    }
+    return result;
+});
+
+const handleNodeClick = (data) => {
+    if(data.is_virtual) {
+        // 点击"全部笔记"虚拟节点
+        store.currentCateId = null;
+    } else {
+        store.currentCateId = data.id;
+    }
+    // 移动端：选择分类后收起抽屉
+    if(store.isMobile) {
+        store.closeSidebar();
+    }
+};
+
+// 分类树配置
+const treeProps = {
+    label: 'name',
+    children: 'children'
+};
+
+// 拖拽控制：虚拟节点不允许拖拽
+const allowDrag = (draggingNode) => {
+    return !draggingNode.data.is_virtual;
+};
+
+// 拖拽控制：不允许放到虚拟节点内部
+const allowDrop = (draggingNode, dropNode, type) => {
+    if(dropNode.data.is_virtual) {
+        return false;
+    }
+    // 不允许拖到"全部笔记"下面成为子节点
+    return true;
+};
+
+// 拖拽结束：保存排序
+const handleDrop = (draggingNode, dropNode, dropType, ev) => {
+    // 收集所有分类的排序数据
+    const items = [];
+    const collectItems = (nodes, pid, sortBase) => {
+        let sort = sortBase;
+        for(const node of nodes) {
+            if(node.is_virtual) continue;
+            items.push({ id: node.id, sort: sort, pid: pid });
+            sort++;
+            if(node.children && node.children.length > 0) {
+                sort = collectItems(node.children, node.id, sort);
+            }
+        }
+        return sort;
+    };
+
+    // 遍历分类树（跳过虚拟节点"全部笔记"）
+    const realCats = store.categories.filter(c => !c.is_virtual);
+    collectItems(realCats, 0, 0);
+
+    // 调用后端保存排序
+    api.sortCate(items).then(res => {
+        if(res.state === 1) {
+            ElMessage.success('排序已保存');
+        } else {
+            ElMessage.error(res.msg);
+            // 刷新恢复
+            store.loadCategories();
+        }
+    });
+};
+
+const selectIcon = (emoji) => {
+    cateForm.icon = emoji;
+    iconInput.value = emoji;          // 输入框与选中态同步
+    emojiPickerVisible.value = false;  // 选中即关弹窗
+};
+
+const showAddDialog = () => {
+    dialogTitle.value = '添加分类';
+    cateForm.id = null;
+    cateForm.pid = store.currentCateId || 0;
+    cateForm.icon = '📁';
+    cateForm.name = '';
+    cateForm.is_public = false;
+    iconInput.value = '';
+    activeEmojiGroup.value = '常用';   // 每次打开回到默认分组
+    dialogVisible.value = true;
+};
+
+const handleCommand = async(command, data) => {
+    if(command === 'add') {
+        dialogTitle.value = '添加子分类';
+        cateForm.id = null;
+        cateForm.pid = data.id;
+        cateForm.icon = '📁';
+        cateForm.name = '';
+        cateForm.is_public = false;
+        iconInput.value = '';
+        activeEmojiGroup.value = '常用';
+        dialogVisible.value = true;
+    } else if(command === 'edit') {
+        dialogTitle.value = '编辑分类';
+        cateForm.id = data.id;
+        cateForm.pid = data.pid;
+        cateForm.icon = data.icon || '📁';
+        cateForm.name = data.name;
+        cateForm.is_public = data.is_public === 1;
+        iconInput.value = data.icon || '';
+        activeEmojiGroup.value = '常用';
+        dialogVisible.value = true;
+    } else if(command === 'delete') {
+        try {
+            await ElMessageBox.confirm(
+                `确定删除分类「${data.name}」吗？`,
+                '删除确认',
+                {
+                    confirmButtonText: '确定删除',
+                    cancelButtonText: '取消',
+                    type: 'warning'
+                }
+            );
+            const res = await api.deleteCate(data.id);
+            if(res.state === 1) {
+                ElMessage.success('删除成功');
+                store.loadCategories();
+            } else {
+                ElMessage.error(res.msg);
+            }
+        } catch(e) {
+            // 用户取消
+        }
+    }
+};
+
+const saveCate = async () => {
+    if(!cateForm.name) {
+        ElMessage.warning('请输入分类名称');
+        return;
+    }
+
+    const data = {
+        ...cateForm,
+        icon: cateForm.icon || '📁',
+        is_public: cateForm.is_public ? 1 : 0
+    };
+
+    let res;
+    if(cateForm.id) {
+        res = await api.updateCate(data);
+    } else {
+        res = await api.createCate(data);
+    }
+
+    if(res.state === 1) {
+        ElMessage.success('保存成功');
+        dialogVisible.value = false;
+        store.loadCategories();
+    } else {
+        ElMessage.error(res.msg);
+    }
+};
+
+const createNote = async () => {
+    // 不再检查分类，直接创建笔记
+    const res = await api.createNote({
+        title: '无标题笔记',
+        cate_id: store.currentCateId || null,
+        content: ''
+    });
+
+    if(res.state === 1) {
+        const newNote = {
+            id: res.data.id,
+            title: '无标题笔记',
+            cate_id: store.currentCateId || null,
+            content: '',
+            keywords: '',
+            is_pinned: 0
+        };
+
+        store.notesCache[newNote.id] = newNote;
+        store.addTab(newNote);
+        ElMessage.success('笔记已创建');
+    } else {
+        ElMessage.error(res.msg);
+    }
+};
+
+const createNoteInCate = async (cateId) => {
+    // 设置当前分类
+    store.currentCateId = cateId;
+
+    const res = await api.createNote({
+        title: '无标题笔记',
+        cate_id: cateId,
+        content: ''
+    });
+
+    if(res.state === 1) {
+        const newNote = {
+            id: res.data.id,
+            title: '无标题笔记',
+            cate_id: cateId,
+            content: '',
+            keywords: '',
+            is_pinned: 0
+        };
+
+        store.notesCache[newNote.id] = newNote;
+        store.addTab(newNote);
+        store.loadNotes(cateId);
+        ElMessage.success('笔记已创建');
+    } else {
+        ElMessage.error(res.msg);
+    }
+};
+
+const logout = async () => {
+    try {
+        await ElMessageBox.confirm(
+            '确定要退出登录吗？',
+            '退出确认',
+            {
+                confirmButtonText: '确定退出',
+                cancelButtonText: '取消',
+                type: 'warning'
+            }
+        );
+        // AJAX 退出（复用统一 request 封装）：成功后 location.replace
+        // 替换历史——返回键不会回到已退出的 admin 页
+        const res = await request('/admin/login/logout');
+        if(res.state === 1) {
+            location.replace(res.data || '/admin/login');
+        } else {
+            ElMessage.error(res.msg || '退出失败');
+        }
+    } catch(e) {
+        // 用户取消确认框 / 网络异常：留在当前页
+    }
+};
+
+const goToHome = async () => {
+    try {
+        await ElMessageBox.confirm(
+            '确定要访问前台首页吗？',
+            '跳转确认',
+            {
+                confirmButtonText: '确定',
+                cancelButtonText: '取消',
+                type: 'info'
+            }
+        );
+        window.open('/', '_blank');
+    } catch(e) {
+        // 用户取消确认框：留在当前页
+    }
+};
+</script>
