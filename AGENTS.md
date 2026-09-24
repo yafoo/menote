@@ -169,6 +169,23 @@ npm run test:smoke   # 前台 SPA 冒烟测试（需服务已在 3107 运行）
 
 脚本内置**自检**：扫描 `dist/index.js` 与 `dist/method.min.js` 里所有 `/dist/...` 字面量，逐条核对产物里是否存在，缺了就报错退出（白名单漏项只在用户写特定语法时才暴露，光看"构建成功"发现不了）。版本戳含白名单指纹，且**等自检通过后才落盘**。
 
+> ⚠️ **改这个脚本时务必按 Linux 语义自查 —— 本机（Windows）的"构建通过"不能作为 CI 会通过的证据。**
+>
+> 这个坑真实发生过一次：vditor 源码里有 `".../dist/index.css\"/>"` 这种**转义引号**写法，提取用的正则把单/双引号与反引号都当定界符，**不认 JS 转义**，于是把转义用的 `\` 一起 capture 进 `rel`，得到 `"index.css\"`。随后第 195 行的 `fs.stat(join(dest, rel))` 出现平台分歧：
+>
+> | 平台 | 行为 |
+> |---|---|
+> | Windows | 尾部 `\` 在**系统调用层**就被当路径分隔符吃掉，`stat` 照样成功 → 本地永远"通过" |
+> | Linux | `\` 是字面字符，`dist/index.css\` 不存在 → 判 missing → **`exit 1`** |
+>
+> 后果：从 SFC 迁移（`14b7b47`）起，**GitHub Actions 连续 2 次构建全部失败**（run #37/#38），而本地一次都没察觉。修法是提取时加 `.replace(/\\/g, '/')` 归一。
+>
+> 教训推广：凡是构建脚本里出现**路径拼接、文件名比较、大小写敏感比较**的地方，都要主动按 Linux 语义过一遍——CI/Docker 全在 Linux 上跑，日常开发却在 Windows。
+>
+> 两个配套的验证技巧：
+> - **版本戳会短路自检**（命中直接 `exit 0`）→ 验证白名单/自检相关改动前，必须先删 `public/static/vendor/vditor/.version`，否则看到的"通过"是短路出来的。CI/新克隆上该目录不存在，必然走完整路径。
+> - **别用 `fs.stat` 仿真 Linux**：Windows 文件系统在系统调用层就吃掉尾部 `\`（连 `dest + '/' + rel` 字符串拼接都救不了）。要忠实仿真，得先遍历产物目录得到**真实相对路径集合**，再做 membership 判断——这才是 Linux 目录查找（字节级精确匹配文件名）的语义。
+
 想恢复某个渲染器：把键名加进 `ENABLED_OPTIONAL`（`mermaid` / `graphviz` / `echarts` / `markmap` / `abcjs` / `smiles` / `flowchart` / `wavedrom` / `plantuml` / `mathjax`）。关掉的后果只是「该 ``` 代码块回落成源码显示」，不影响编辑保存。
 
 已知局限：Vditor 的「关于」面板硬编码了 `https://unpkg.com/vditor/dist/images/logo.png`（不走 cdn 选项，改不了），纯离线环境下该 logo 是裂图。
