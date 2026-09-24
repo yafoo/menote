@@ -90,3 +90,10 @@ CREATE TABLE IF NOT EXISTS `menote_site` (
   `tips` VARCHAR(200) NOT NULL DEFAULT '',
   `sort` INTEGER NOT NULL DEFAULT 0
 );
+
+-- 主题（浅色 / 暗黑 / 自适应）。
+-- 老库不会有这一行——app/api/controller/site.js 的 get() 里做了幂等补行，
+-- 管理员打开一次设置页就会自动落库，不必手动执行 SQL。
+INSERT INTO `menote_site` (`group`, `type`, `key`, `title`, `value`, `tips`, `sort`)
+SELECT 'display', 'select', 'theme', '主题', 'auto', '前台与后台的默认配色。访客在本机手动选过的主题优先于此设置', 0
+WHERE NOT EXISTS (SELECT 1 FROM `menote_site` WHERE `key` = 'theme');

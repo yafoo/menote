@@ -12,3 +12,5 @@ public/static/dist
 public/static/vendor
 fpk/menote.fpk
 .workbuddy-ai
+# 临时脚本/截图（.tmp- 前缀，用完即删；不忽略的话很容易被 git add . 带进提交）
+.tmp-*

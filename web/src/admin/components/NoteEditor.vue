@@ -62,6 +62,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '@/admin/store/index.js';
+import { resolvedTheme } from '@/shared/theme.js';
 import Vditor from 'vditor';
 
 const vditor = ref(null);
@@ -86,6 +87,17 @@ const flatCategories = computed(() => {
     flatten(store.categories);
     return flat;
 });
+
+// Vditor 的主题不像 EP 那样跟着 CSS 变量走，必须显式给三个：
+//   · theme              编辑器外壳（classic / dark）——工具栏、光标、正文底色
+//   · preview.theme      内容主题，实际是去拉 dist/css/content-theme/<名字>.css
+//   · preview.hljs.style 代码块高亮，对应 dist/js/highlight.js/styles/<名字>.min.css
+// 三个都得给，只给其中一两个会出现"工具栏变暗了但正文还是白底"这种半吊子状态。
+// 这三个值都取自自托管白名单（见 web/vendor-vditor.mjs 的 CONTENT_THEMES / CODE_THEMES）
+const isDark = () => resolvedTheme.value === 'dark';
+const vdTheme = () => (isDark() ? 'dark' : 'classic');
+const vdContentTheme = () => (isDark() ? 'dark' : 'light');
+const vdCodeTheme = () => (isDark() ? 'github-dark' : 'github');
 
 // Vditor 工具栏：
 // - PC 端不配置 = Vditor 官方默认全量工具栏
@@ -129,6 +141,12 @@ const initVditor = () => {
     vditorInstance = new Vditor('vditor', {
         height: '100%',
         mode: 'wysiwyg',
+        // 按当前主题决定编辑器/内容/代码三套主题，否则默认永远是 classic + light
+        theme: vdTheme(),
+        preview: {
+            theme: { current: vdContentTheme() },
+            hljs: { style: vdCodeTheme() }
+        },
         ...(toolbar ? { toolbar } : {}),
         toolbarConfig: {
             pin: true
@@ -189,6 +207,13 @@ store.registerEditorSync(() => {
 });
 onUnmounted(() => {
     if(store.editorSync) store.registerEditorSync(null);
+});
+
+// 切主题时不重建 Vditor——重建会丢掉光标位置和撤销栈。setTheme 就够，
+// 它会换掉外壳 class、内容主题 link 和代码高亮 link 三处
+watch(resolvedTheme, () => {
+    if(!vditorInstance) return;
+    vditorInstance.setTheme(vdTheme(), vdContentTheme(), vdCodeTheme());
 });
 
 watch(() => store.activeTabId, async () => {

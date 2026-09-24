@@ -1,6 +1,7 @@
 const {Controller, Logger} = require('jj.js');
 const fs = require('fs');
 const {join} = require('path');
+const theme = require('../../../lib/theme');
 
 // 前台 SPA 构建产物：由 web/ 的 Vite 工程构建输出（npm run build）
 // 注意路径里的 public/ 是 jj.js 的静态目录（config/app.js 的 static_dir），
@@ -51,7 +52,12 @@ class Index extends Controller
             this.ctx.status = 500;
             return this.$show('前端资源未构建，请在项目根目录执行：npm run build');
         }
-        return this.$show(html);
+
+        // 首屏防闪：把站点默认主题填进外壳里那段内联脚本的占位符。
+        // 不注入的话，暗色主题的访客会先看到一帧浅色再跳成暗色。
+        // 这个读取带 5 秒内存缓存，不是每次请求都查库（见 lib/theme.js）
+        const mode = await theme.getSiteTheme(this.$model.site);
+        return this.$show(theme.inject(html, mode));
     }
 }
 

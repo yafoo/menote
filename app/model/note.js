@@ -17,6 +17,10 @@ class Note extends Model {
     
     /**
      * 获取公开笔记列表（前台用）
+     *
+     * ⚠️ 目前没有调用方（前台走下面的 getPublicNoteList）。若将来要用，
+     * 注意这里的 cate_id 是**精确匹配、不展开子分类**的，跟前台"点父分类
+     * 连子分类一起列"的预期不一致。
      */
     async getPublicNotes(options = {}) {
         let query = this.db.table('note n')
@@ -55,6 +59,10 @@ class Note extends Model {
      * 获取公开笔记列表（前台用，分页）
      * 与 getPublicNotes 的区别：返回 [列表, 分页对象]，且**不含 content**
      * （正文可能很大，列表页用不上）
+     *
+     * cate_ids 传的是**分类 id 数组**而不是单个 id：前台点父分类要连子分类的
+     * 笔记一起列出来，由调用方先用 cate.getPublicCateIds() 展开好再传进来。
+     * 传空数组/不传 == 不按分类过滤（全部公开笔记）。
      */
     async getPublicNoteList(options = {}) {
         let query = this.db.table('note n')
@@ -62,8 +70,9 @@ class Note extends Model {
             .join('cate c', 'n.cate_id=c.id', 'inner')
             .where({'c.is_public': 1});
 
-        if(options.cate_id) {
-            query = query.where({'n.cate_id': options.cate_id});
+        // 空数组要挡住：jj.js 会把 ['in', []] 拼成 `in ()`，是条语法错误的 SQL
+        if(options.cate_ids && options.cate_ids.length) {
+            query = query.where({'n.cate_id': ['in', options.cate_ids]});
         }
         if(options.keyword) {
             query = query.where('n.title like ?', ['%' + options.keyword + '%']);

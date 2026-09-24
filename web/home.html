@@ -1,13 +1,57 @@
 <!DOCTYPE html>
-<html lang="zh-CN" style="background:#faf7f2">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- 标题由前端路由在切换页面时用 document.title 覆盖（SPA 没有服务端渲染） -->
     <title>MeNote</title>
-    <!-- 移动端浏览器地址栏配色，跟暖纸底色一致 -->
-    <meta name="theme-color" content="#faf7f2">
+    <!-- 移动端浏览器地址栏配色，由下面的脚本按当前主题改写 -->
+    <meta name="theme-color" content="#ffffff">
     <link rel="icon" href="/favicon.ico">
+
+    <!--
+        首屏防闪脚本：必须在 <body> 之前同步执行，浏览器第一帧就是正确颜色。
+
+        __MENOTE_THEME__ 是服务端占位符，返回外壳时会被替换成后台"站点设置"里的
+        主题（见 lib/theme.js）；Vite dev server 直出时它还是字面量，下面的白名单
+        校验会把它当非法值退回 auto。
+
+        ⚠️ 这段逻辑与 web/src/shared/theme.js 的 applyTheme 是同一件事的两份实现，
+           改一边记得改另一边（后台入口 admin.html 里也有一份一模一样的）。
+    -->
+    <script>
+    (function () {
+        var MODES = ['auto', 'light', 'dark'];
+        var FALLBACK = '__MENOTE_THEME__';
+
+        var stored = null;
+        try { stored = localStorage.getItem('menote-theme'); } catch (e) {}
+        if (MODES.indexOf(stored) < 0) stored = null;
+
+        var mode = stored || FALLBACK;
+        if (MODES.indexOf(mode) < 0) mode = 'auto';
+        if (mode === 'auto') {
+            mode = (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches)
+                ? 'dark' : 'light';
+        }
+
+        var el = document.documentElement;
+        el.setAttribute('data-theme', mode);
+        el.setAttribute('data-theme-mode', stored || FALLBACK);
+        // Element Plus 的暗色变量认 html.dark；前台不引组件库，加着也无害，
+        // 这样两个入口的脚本可以完全一致
+        if (mode === 'dark') el.className = 'dark';
+
+        var meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute('content', mode === 'dark' ? '#0f1716' : '#ffffff');
+    })();
+    </script>
+
+    <style>
+        /* 兜底底色：主样式表（及懒加载 chunk）到位前先铺上，避免白闪 */
+        html { background: #ffffff; }
+        html[data-theme="dark"] { background: #0f1716; }
+    </style>
 </head>
 <body>
     <div id="app"></div>

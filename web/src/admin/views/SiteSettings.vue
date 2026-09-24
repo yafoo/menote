@@ -10,7 +10,19 @@
     <div class="settings-content" v-loading="loading">
         <el-form label-width="90px" class="settings-form">
             <el-form-item v-for="item in configItems" :key="item.key" :label="item.title">
-                <el-input v-if="item.type === 'input'" v-model="item.value" />
+                <el-select
+                    v-if="item.type === 'select'"
+                    v-model="item.value"
+                    class="settings-select"
+                    @change="onConfigChange(item)"
+                >
+                    <el-option
+                        v-for="opt in selectOptions(item)"
+                        :key="opt.value"
+                        :label="opt.label"
+                        :value="opt.value"
+                    />
+                </el-select>
                 <el-input v-else-if="item.type === 'textarea'" v-model="item.value" type="textarea" :rows="3" />
                 <el-input v-else v-model="item.value" />
                 <div v-if="item.tips" class="form-tips">{{item.tips}}</div>
@@ -27,10 +39,30 @@
 import { ElMessage } from 'element-plus';
 import { ref, onMounted } from 'vue';
 import { request } from '@/admin/api/index.js';
+import { applyTheme, previewTheme, readStoredMode, THEME_LABELS } from '@/shared/theme.js';
 
 const loading = ref(true);
 const saving = ref(false);
 const configItems = ref([]);
+
+// 枚举型配置项的选项表。
+//
+// menote_site 只有 key/value 两个可用字段，没地方存"这个 select 有哪些选项"，
+// 所以选项写在组件里。新增枚举型配置项时在这里补一条即可——没配的会退化成
+// 空下拉，肉眼一看就知道漏了。
+const SELECT_OPTIONS = {
+    theme: ['auto', 'light', 'dark'].map(v => ({value: v, label: THEME_LABELS[v]}))
+};
+
+const selectOptions = (item) => SELECT_OPTIONS[item.key] || [];
+
+// 改完立即预览：主题是"所见即所得"的设置，等点保存再看效果太绕。
+// previewTheme 只改当前页面的显示，不动 themeMode、更不写 localStorage——
+// 所以不会覆盖管理员自己在本机选的偏好，也不会让侧栏的切换按钮跟着乱跳。
+// 保存成功后 applyTheme 才真正把状态对齐到新的站点默认值
+const onConfigChange = (item) => {
+    if(item.key === 'theme') previewTheme(item.value);
+};
 
 const loadConfig = async () => {
     loading.value = true;
@@ -59,6 +91,10 @@ const saveSettings = async () => {
         });
         if(res.state === 1) {
             ElMessage.success('保存成功');
+            // 把预览"落实"下来：本机手动选过主题的不受影响（本机偏好优先），
+            // 没选过的就跟上新的站点默认值
+            const saved = configItems.value.find(i => i.key === 'theme');
+            if(saved) applyTheme(readStoredMode() || saved.value);
         } else {
             ElMessage.error(res.msg || '保存失败');
         }

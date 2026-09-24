@@ -6,17 +6,85 @@
     box-sizing: border-box;
 }
 
+/* ── 主题：青瓷点缀 ─────────────────────────────────────────────────
+ * 后台整体沿用 Element Plus 的原生观感，只把 primary 换成品牌青——
+ * 也就是"只在需要的地方点缀一下"：按钮、链接、选中态、焦点框会变青，
+ * 布局和中性色不动。
+ *
+ * 色阶是按 Element Plus 自己的混色公式算的（浅色 mix(#fff)、暗色 mix(#141414)），
+ * 算完用官方 #409eff 反查过一遍，六个档位全部吻合。对比度也过了 WCAG AA：
+ * 白字压在 #00796b 实底上 5.32:1。
+ *
+ * ⚠️ 暗色态必须同时改这里和 html.dark 下的那套。Element Plus 的暗色变量
+ *    （element-plus/theme-chalk/dark/css-vars.css，在 main.js 里引入）会把
+ *    --el-color-primary 系列整体重定义回默认蓝 #409eff——只改 :root 的话，
+ *    切到暗色 primary 就变回蓝色了。
+ */
+
 :root {
     --el-font-size-base: 13px;
-    --el-color-primary: #409eff;
+
+    /* primary 系列 · 浅色 */
+    --el-color-primary: #00796b;
+    --el-color-primary-rgb: 0, 121, 107;
+    --el-color-primary-light-3: #4da197;
+    --el-color-primary-light-5: #80bcb5;
+    --el-color-primary-light-7: #b3d7d3;
+    --el-color-primary-light-8: #cce4e1;
+    --el-color-primary-light-9: #e6f2f0;
+    --el-color-primary-dark-2: #006156;
+
+    /* ── 语义别名：与前台 home.css 同名，供 canvas 类组件读取 ──────────
+     * 图谱画布（web/src/shared/GraphCanvas.vue）用 getComputedStyle 从 <html>
+     * 上读这几个变量，前后台共用同一份读取逻辑，所以后台也得有同名令牌。
+     *
+     * 值写成 var() 别名而不是重复一遍色值：var() 是运行时解析的，
+     * 暗色下 EP 把 --el-color-primary 系列整体重定义时，这几个别名会自动跟随，
+     * 不必在 html.dark 里再抄一遍（抄了反而容易漏）。
+     *
+     * --accent-deep 对到 dark-2 是刚好合适的：浅色下 dark-2 更深（#006156）、
+     * 暗色下 EP 把它定义成更亮（#4aa096），正好是"远离背景色"的方向，
+     * 与前台 --accent-deep 的语义一致。
+     */
+    --accent: var(--el-color-primary);
+    --accent-deep: var(--el-color-primary-dark-2);
+    --text: var(--el-text-color-primary);
+    --border: var(--el-border-color);
+    --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html.dark {
+    /* primary 系列 · 暗色
+       主色抬亮到 #1d887c：这是在"白字压在实底按钮上"和"主色当文字压在 #141414
+       上"之间取的平衡点（4.32:1 / 4.27:1，两边都不吃亏）。直接用浅色的 #00796b
+       当文字只有 3.46:1，读不清；Element Plus 默认蓝在这一点上更极端，
+       白字只有 2.78:1。 */
+    --el-color-primary: #1d887c;
+    --el-color-primary-rgb: 29, 136, 124;
+    --el-color-primary-light-3: #1a655d;
+    --el-color-primary-light-5: #194e48;
+    --el-color-primary-light-7: #173733;
+    --el-color-primary-light-8: #162b29;
+    --el-color-primary-light-9: #15201e;
+    --el-color-primary-dark-2: #4aa096;
+
+    /* 中性底色往青偏一档，让暗色态也认得出是同一个站点。
+       只动这三个 + 描边，其余交给 Element Plus 自己 */
+    --el-bg-color-page: #0c1110;
+    --el-bg-color: #121817;
+    --el-bg-color-overlay: #18201e;
+    --el-border-color: #2b3634;
+    --el-border-color-light: #253130;
+    --el-border-color-lighter: #202b29;
+    --el-border-color-extra-light: #1b2523;
 }
 
 html, body {
     height: 100%;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    font-family: var(--font-ui);
     font-size: 13px;
-    color: #303133;
-    background: #f5f7fa;
+    color: var(--el-text-color-primary);
+    background: var(--el-bg-color-page);
 }
 
 #app {
@@ -42,15 +110,15 @@ html, body {
 }
 
 .workspace-aside {
-    background: #fff;
-    border-right: 1px solid #e4e7ed;
+    background: var(--el-bg-color);
+    border-right: 1px solid var(--el-border-color-lighter);
     display: flex;
     flex-direction: column;
     overflow: hidden;
 }
 
 .workspace-content {
-    background: #fff;
+    background: var(--el-bg-color);
     padding: 0;
     overflow: hidden;
     display: flex;
@@ -59,8 +127,8 @@ html, body {
 
 /* ==================== 侧栏 ==================== */
 .note-list-aside {
-    background: #fff;
-    border-right: 1px solid #e4e7ed;
+    background: var(--el-bg-color);
+    border-right: 1px solid var(--el-border-color-lighter);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -79,14 +147,14 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    border-bottom: 1px solid #e4e7ed;
+    border-bottom: 1px solid var(--el-border-color-lighter);
     font-size: 13px;
     font-weight: 500;
     flex-shrink: 0;
 }
 
 .tree-title {
-    color: #606266;
+    color: var(--el-text-color-regular);
 }
 
 .el-tree {
@@ -115,7 +183,7 @@ html, body {
 }
 
 .el-tree-node.is-drop-inner > .el-tree-node__content {
-    background-color: #e6f0ff !important;
+    background-color: var(--el-color-primary-light-9) !important;
 }
 
 .el-tree-node.is-dragging > .el-tree-node__content {
@@ -164,34 +232,34 @@ html, body {
 
 .node-actions .el-button .el-icon {
     font-size: 14px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
 }
 
 .node-actions .el-button:hover .el-icon {
-    color: #409eff;
+    color: var(--el-color-primary);
 }
 
 .action-icon {
     font-size: 14px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
     cursor: pointer;
     padding: 2px;
     border-radius: 2px;
 }
 
 .action-icon:hover {
-    background: #f0f2f5;
-    color: #409eff;
+    background: var(--el-fill-color-light);
+    color: var(--el-color-primary);
 }
 
 .tree-footer {
     padding: 4px 10px;
-    border-top: 1px solid #e4e7ed;
+    border-top: 1px solid var(--el-border-color-lighter);
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    background: #fff;
+    background: var(--el-bg-color);
     flex-shrink: 0;
     height: 36px;
     box-sizing: border-box;
@@ -202,7 +270,7 @@ html, body {
     align-items: center;
     gap: 4px;
     font-size: 12px;
-    color: #606266;
+    color: var(--el-text-color-regular);
     overflow: hidden;
     flex: 1;
     min-width: 0;
@@ -213,12 +281,12 @@ html, body {
 }
 
 .user-info:hover {
-    background: #f0f2f5;
+    background: var(--el-fill-color-light);
 }
 
 .user-info .el-icon {
     font-size: 14px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
     flex-shrink: 0;
 }
 
@@ -249,7 +317,7 @@ html, body {
     justify-content: space-between;
     font-size: 13px;
     font-weight: 500;
-    border-bottom: 1px solid #f0f2f5;
+    border-bottom: 1px solid var(--el-border-color-extra-light);
     flex-shrink: 0;
 }
 
@@ -260,7 +328,7 @@ html, body {
 }
 
 .note-list-title {
-    color: #606266;
+    color: var(--el-text-color-regular);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -277,17 +345,17 @@ html, body {
 .toggle-note-list-btn {
     display: none;
     padding: 2px !important;
-    color: #909399;
+    color: var(--el-text-color-secondary);
 }
 
 .toggle-note-list-btn:hover {
-    color: #409eff;
+    color: var(--el-color-primary);
 }
 
 .note-list-count {
     font-size: 11px;
-    color: #909399;
-    background: #f0f2f5;
+    color: var(--el-text-color-secondary);
+    background: var(--el-fill-color-light);
     padding: 1px 6px;
     border-radius: 8px;
     font-weight: 400;
@@ -318,8 +386,8 @@ html, body {
     align-items: center;
     justify-content: center;
     padding: 0 6px;
-    border-top: 1px solid #e4e7ed;
-    background: #fff;
+    border-top: 1px solid var(--el-border-color-lighter);
+    background: var(--el-bg-color);
     flex-shrink: 0;
     height: 36px;
     box-sizing: border-box;
@@ -332,7 +400,7 @@ html, body {
 .note-list-empty {
     text-align: center;
     padding: 30px 0;
-    color: #c0c4cc;
+    color: var(--el-text-color-placeholder);
     font-size: 12px;
 }
 
@@ -350,37 +418,37 @@ html, body {
 
 .note-item.sortable-ghost {
     opacity: 0.4;
-    background: #e6f0ff;
+    background: var(--el-color-primary-light-9);
 }
 
 .note-item.sortable-drag {
-    background: #fff;
+    background: var(--el-bg-color);
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 .note-item:hover {
-    background: #f0f2f5;
+    background: var(--el-fill-color-light);
 }
 
 .note-item.active {
-    background: #e6f0ff;
+    background: var(--el-color-primary-light-9);
 }
 
 .note-item.pinned {
-    background: #fff9e6;
+    background: var(--el-color-warning-light-9);
 }
 
 .note-item.pinned:hover {
-    background: #fff4d9;
+    background: var(--el-color-warning-light-8);
 }
 
 .note-item.pinned.active {
-    background: #e6f0ff;
+    background: var(--el-color-primary-light-9);
 }
 
 .note-item-title {
     font-size: 13px;
-    color: #303133;
+    color: var(--el-text-color-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -394,7 +462,7 @@ html, body {
 
 .pin-icon {
     font-size: 12px;
-    color: #e6a23c;
+    color: var(--el-color-warning);
     flex-shrink: 0;
 }
 
@@ -410,7 +478,7 @@ html, body {
 .note-item-time {
     flex-shrink: 0;
     font-size: 11px;
-    color: #c0c4cc;
+    color: var(--el-text-color-placeholder);
     margin-left: auto;
 }
 
@@ -441,24 +509,24 @@ html, body {
 
 .note-item-actions .el-button .el-icon {
     font-size: 14px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
 }
 
 .note-item-actions .el-button:hover .el-icon {
-    color: #f56c6c;
+    color: var(--el-color-danger);
 }
 
 .note-item-actions .action-icon {
     font-size: 14px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
     cursor: pointer;
     padding: 2px;
     border-radius: 2px;
 }
 
 .note-item-actions .action-icon:hover {
-    background: #f0f2f5;
-    color: #409eff;
+    background: var(--el-fill-color-light);
+    color: var(--el-color-primary);
 }
 
 .note-item-meta {
@@ -476,8 +544,9 @@ html, body {
 .tabs-bar {
     display: flex;
     align-items: center;
-    border-bottom: 1px solid #e4e7ed;
-    background: #f5f7fa;
+    border-top: 1px solid var(--el-bg-color-page);
+    border-bottom: 1px solid var(--el-border-color-lighter);
+    background: var(--el-bg-color-page);
     min-width: 0;
 }
 
@@ -496,7 +565,7 @@ html, body {
     display: flex;
     gap: 8px;
     padding: 0 12px;
-    border-left: 1px solid #e4e7ed;
+    border-left: 1px solid var(--el-border-color-lighter);
 }
 
 .el-tabs--card > .el-tabs__header {
@@ -515,18 +584,18 @@ html, body {
     padding: 0 12px;
     font-size: 12px;
     border: none;
-    border-right: 1px solid #e4e7ed;
-    background: #f5f7fa;
-    color: #606266;
+    border-right: 1px solid var(--el-border-color-lighter);
+    background: var(--el-bg-color-page);
+    color: var(--el-text-color-regular);
 }
 
 .el-tabs--card > .el-tabs__header .el-tabs__item.is-active {
     /* background: #fff; */
-    color: #409eff;
+    color: var(--el-color-primary);
 }
 
 .el-tabs--card > .el-tabs__header .el-tabs__item:hover {
-    color: #409eff;
+    color: var(--el-color-primary);
 }
 
 .el-tabs__nav-next,
@@ -587,7 +656,7 @@ html, body {
 
 .editor-header {
     padding: 8px 12px;
-    border-bottom: 1px solid #e4e7ed;
+    border-bottom: 1px solid var(--el-border-color-lighter);
     display: flex;
     align-items: center;
     gap: 12px;
@@ -599,12 +668,12 @@ html, body {
     outline: none;
     font-size: 16px;
     font-weight: 500;
-    color: #303133;
+    color: var(--el-text-color-primary);
     background: transparent;
 }
 
 .title-input::placeholder {
-    color: #c0c4cc;
+    color: var(--el-text-color-placeholder);
 }
 
 /* 属性折叠按钮：仅移动端显示 */
@@ -616,11 +685,11 @@ html, body {
 
 .editor-meta {
     padding: 8px 12px;
-    border-bottom: 1px solid #e4e7ed;
+    border-bottom: 1px solid var(--el-border-color-lighter);
     display: flex;
     align-items: center;
     gap: 16px;
-    background: #fafafa;
+    background: var(--el-fill-color-lighter);
 }
 
 .meta-item {
@@ -631,7 +700,7 @@ html, body {
 
 .meta-item label {
     font-size: 12px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
     white-space: nowrap;
 }
 
@@ -650,8 +719,8 @@ html, body {
 
 /* 反向链接面板 */
 .backlinks-panel {
-    border-top: 1px solid #e4e7ed;
-    background: #fafafa;
+    border-top: 1px solid var(--el-border-color-lighter);
+    background: var(--el-fill-color-lighter);
     padding: 8px 12px;
     max-height: 150px;
     overflow-y: auto;
@@ -663,14 +732,14 @@ html, body {
     align-items: center;
     gap: 4px;
     font-size: 12px;
-    color: #606266;
+    color: var(--el-text-color-regular);
     font-weight: 500;
     margin-bottom: 6px;
 }
 
 .backlinks-header .el-icon {
     font-size: 14px;
-    color: #409eff;
+    color: var(--el-color-primary);
 }
 
 .backlinks-list {
@@ -682,24 +751,55 @@ html, body {
 .backlink-item {
     display: inline-block;
     padding: 2px 8px;
-    background: #fff;
-    border: 1px solid #e4e7ed;
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color-lighter);
     border-radius: 4px;
     font-size: 12px;
-    color: #409eff;
+    color: var(--el-color-primary);
     cursor: pointer;
     text-decoration: none;
     transition: all 0.15s;
 }
 
 .backlink-item:hover {
-    background: #e6f0ff;
-    border-color: #409eff;
+    background: var(--el-color-primary-light-9);
+    border-color: var(--el-color-primary);
 }
 
 #vditor {
     flex: 1;
     min-height: 0;
+}
+
+/* Vditor 的暗色配色是靠 .vditor--dark 里一组 CSS 变量控制的，自带的是
+   GitHub Dark 那套（--panel-background-color: #24292e，偏蓝灰）。
+   压在青瓷暗色（#121817，偏青绿）的面板上像贴了块补丁。
+   这里只换变量值、不逐个元素覆盖，Vditor 自己的层次关系（面板 / 文本域 / 工具栏）
+   保持原样。特异性上 html.dark .vditor 是 (0,2,0)，压得过 .vditor--dark 的 (0,1,0) */
+html.dark .vditor {
+    --panel-background-color: var(--el-bg-color-overlay);
+    --textarea-background-color: var(--el-bg-color);
+    --textarea-text-color: var(--el-text-color-primary);
+    --toolbar-icon-color: var(--el-text-color-regular);
+    --border-color: var(--el-border-color);
+}
+
+/* 代码块底色。
+   Vditor 在 wysiwyg 模式下代码块有**两层**：可见的 .vditor-wysiwyg__pre（其中的 code
+   没有 .hljs class，落在 content-theme 里 code:not(.hljs) 那条规则上，是半透明蓝底
+   rgba(66,133,244,.36)）和隐藏的预览层（code 带 .hljs，底色来自 hljs 主题）。
+   两层都要覆盖，否则编辑时看到蓝底、切到预览又变另一个色。
+   不加 html.dark 前缀——浅色下同样存在（可见层浅蓝、预览层浅灰） */
+.vditor .vditor-wysiwyg__pre code:not(.hljs):not(.highlight-chroma),
+.vditor .vditor-reset pre code:not(.hljs):not(.highlight-chroma),
+.vditor .hljs {
+    background-color: var(--el-fill-color-light);
+}
+
+/* 行内代码：Vditor 默认也是那个半透明蓝，换成 primary 最浅档——
+   浅色下是淡青（#e6f2f0），暗色下是深青（#15201e），两套主题都在青瓷色系里 */
+.vditor .vditor-reset code:not(.hljs):not(.highlight-chroma) {
+    background-color: var(--el-color-primary-light-9);
 }
 
 /* Vditor 样式调整 */
@@ -708,8 +808,8 @@ html, body {
 }
 
 .vditor-toolbar {
-    border-bottom: 1px solid #e4e7ed !important;
-    background: #fafafa !important;
+    border-bottom: 1px solid var(--el-border-color-lighter) !important;
+    background: var(--el-fill-color-lighter) !important;
     padding: 4px 8px !important;
 }
 
@@ -823,11 +923,11 @@ html, body {
 }
 
 .icon-item:hover {
-    background: #f0f2f5;
+    background: var(--el-fill-color-light);
 }
 
 .icon-item.active {
-    background: #e6f0ff;
+    background: var(--el-color-primary-light-9);
 }
 
 /* ==================== 空状态 ==================== */
@@ -841,7 +941,7 @@ html, body {
     display: flex;
     justify-content: flex-end;
     padding: 8px 12px;
-    border-bottom: 1px solid #e4e7ed;
+    border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 /* ==================== 空状态 ==================== */
@@ -858,7 +958,7 @@ html, body {
 
 .el-empty__description p {
     font-size: 13px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
 }
 
 /* ==================== Element Plus 紧凑模式 ==================== */
@@ -872,13 +972,14 @@ html, body {
     font-size: 12px;
 }
 
-.el-select .el-input__inner {
-    height: 28px;
-}
-
-.el-select--small .el-select__wrapper {
-    min-height: 30px;
-}
+/* 这里原本有两条 el-select 高度微调，已删：
+     .el-select .el-input__inner { height: 28px }
+        适配老版 EP 的——2.14 的 el-select 内部已改用 .el-select__input，
+        这条早就失效了，留着只会在将来 EP 改回去时突然"复活"
+     .el-select--small .el-select__wrapper { min-height: 30px }
+        会把 small 尺寸的选择框顶到 30px，而同一行的 el-input 走 EP 标准的
+        24px（.el-input--small 的 --el-input-height = --el-component-size-small），
+        两者并排就差了 6px。删掉后统一由 EP 的 --el-component-size-small 决定 */
 
 .el-tag {
     height: 20px;
@@ -903,12 +1004,12 @@ html, body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: #c0c4cc;
+    background: var(--el-border-color-darker);
     border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: #909399;
+    background: var(--el-text-color-placeholder);
 }
 
 ::-webkit-scrollbar-track {
@@ -927,7 +1028,7 @@ html, body {
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #fff;
+    background: var(--el-bg-color);
 }
 
 .settings-content {
@@ -944,10 +1045,16 @@ html, body {
     margin-bottom: 20px;
 }
 
+/* 枚举型配置项（主题等）：下拉只有几个选项，不必占满整行 */
+.settings-select {
+    width: 240px;
+}
+
 .form-tips {
     font-size: 12px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
     margin-top: 4px;
+    line-height: 1.6;
 }
 
 /* ==================== Token 管理页面 ==================== */
@@ -955,7 +1062,7 @@ html, body {
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #fff;
+    background: var(--el-bg-color);
 }
 
 .token-list {
@@ -967,14 +1074,14 @@ html, body {
 .token-empty {
     text-align: center;
     padding: 60px 0;
-    color: #909399;
+    color: var(--el-text-color-secondary);
     font-size: 14px;
 }
 
 .token-value {
     font-family: monospace;
     font-size: 12px;
-    color: #606266;
+    color: var(--el-text-color-regular);
     margin-right: 8px;
 }
 
@@ -998,7 +1105,7 @@ html, body {
 }
 
 .perm-group {
-    border: 1px solid #ebeef5;
+    border: 1px solid var(--el-border-color-lighter);
     border-radius: 4px;
     padding: 8px 10px;
 }
@@ -1009,7 +1116,7 @@ html, body {
     justify-content: space-between;
     margin-bottom: 6px;
     font-size: 13px;
-    color: #606266;
+    color: var(--el-text-color-regular);
     font-weight: 500;
 }
 
@@ -1033,27 +1140,35 @@ html, body {
     height: auto;
     margin-top: 6px;
     font-size: 12px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
 }
 
 /* ==================== 底部导航按钮 ==================== */
+/* 一排只留「主题 / 前台 / 退出 / 更多」四个，其余入口收进「更多」的弹出菜单。
+   间距统一交给容器的 gap */
 .tree-footer-actions {
     display: flex;
-    gap: 2px;
+    align-items: center;
+    gap: 4px;
+}
+
+/* EP 自带 `.el-button + .el-button { margin-left: 12px }`，必须显式归零。
+   之前 dropdown 夹在中间，把它和后面的按钮隔开、只漏出一处 12px，问题不明显；
+   「更多」挪到末尾后三个 el-button 直接相邻，两处 12px 全生效，
+   按钮区一下宽了 24px，把左侧的 `admin` 挤成 `ad...`。
+   归零后间距只由上面的 gap 决定，跟「更多」摆在哪一格无关 */
+.tree-footer-actions .el-button + .el-button {
+    margin-left: 0;
 }
 
 .tree-footer-actions .el-button {
     padding: 4px 6px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
 }
 
 .tree-footer-actions .el-button:hover {
-    color: #409eff;
-    background: #f0f2f5;
-}
-
-.tree-footer-actions  .el-button+.el-button {
-    margin-left: 4px;
+    color: var(--el-color-primary);
+    background: var(--el-fill-color-light);
 }
 
 /* ==================== 统一页面头部 ==================== */
@@ -1062,8 +1177,8 @@ html, body {
     align-items: center;
     height: 48px;
     padding: 0 12px;
-    background: #fff;
-    border-bottom: 1px solid #e4e7ed;
+    background: var(--el-bg-color);
+    border-bottom: 1px solid var(--el-border-color-lighter);
     flex-shrink: 0;
     gap: 4px;
 }
@@ -1071,19 +1186,19 @@ html, body {
 .page-header-back {
     padding: 8px;
     font-size: 18px;
-    color: #606266;
+    color: var(--el-text-color-regular);
     flex-shrink: 0;
 }
 
 .page-header-back:hover {
-    color: #409eff;
+    color: var(--el-color-primary);
 }
 
 .page-header-title {
     flex: 1;
     font-size: 16px;
     font-weight: 500;
-    color: #303133;
+    color: var(--el-text-color-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1102,7 +1217,7 @@ html, body {
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #fff;
+    background: var(--el-bg-color);
 }
 
 .profile-content {
@@ -1122,7 +1237,7 @@ html, body {
 .profile-logout {
     margin-top: 32px;
     padding-top: 16px;
-    border-top: 1px solid #f0f2f5;
+    border-top: 1px solid var(--el-border-color-extra-light);
     max-width: 480px;
 }
 
@@ -1151,8 +1266,8 @@ html, body {
     align-items: center;
     height: 48px;
     padding: 0 8px;
-    background: #fff;
-    border-bottom: 1px solid #e4e7ed;
+    background: var(--el-bg-color);
+    border-bottom: 1px solid var(--el-border-color-lighter);
     flex-shrink: 0;
     gap: 4px;
 }
@@ -1161,7 +1276,7 @@ html, body {
 .mobile-back-btn {
     padding: 8px;
     font-size: 20px;
-    color: #606266;
+    color: var(--el-text-color-regular);
     flex-shrink: 0;
 }
 .mobile-save-btn {
@@ -1174,7 +1289,7 @@ html, body {
     flex: 1;
     font-size: 16px;
     font-weight: 500;
-    color: #303133;
+    color: var(--el-text-color-primary);
     text-align: center;
     min-width: 0;
     padding: 0 4px;
@@ -1205,16 +1320,17 @@ html, body {
 .tabs-actions .has-modified .modified-hint {
     font-size: 10px;
     margin-left: 2px;
-    color: #e6a23c;
+    color: var(--el-color-warning);
 }
 
-/* 未保存时 PC 保存按钮（plain 主题）描边强调 */
+/* 未保存时 PC 保存按钮（plain 主题）描边强调。
+   用 warning 语义色而不是写死 #e6a23c/#fdf6ec——写死的奶白底在暗色下会突兀 */
 .tabs-actions .has-modified.el-button--primary.is-plain {
-    --el-button-text-color: #e6a23c;
-    --el-button-border-color: #e6a23c;
-    --el-button-hover-text-color: #e6a23c;
-    --el-button-hover-border-color: #e6a23c;
-    --el-button-hover-bg-color: #fdf6ec;
+    --el-button-text-color: var(--el-color-warning);
+    --el-button-border-color: var(--el-color-warning);
+    --el-button-hover-text-color: var(--el-color-warning);
+    --el-button-hover-border-color: var(--el-color-warning);
+    --el-button-hover-bg-color: var(--el-color-warning-light-9);
 }
 
 /* 关闭 Tab 时的未保存提示弹窗 */
@@ -1256,7 +1372,7 @@ html, body {
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #f5f7fa;
+    background: var(--el-bg-color-page);
 }
 
 .graph-content {
@@ -1274,15 +1390,15 @@ html, body {
 .graph-network-box {
     flex: 1;
     min-height: 400px;
-    background: #fff;
-    border: 1px solid #e4e7ed;
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color-lighter);
     border-radius: 8px;
 }
 
 .graph-info {
     margin-top: 10px;
     font-size: 13px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
     text-align: center;
 }
 
@@ -1291,7 +1407,7 @@ html, body {
     height: 100%;
     display: flex;
     flex-direction: column;
-    background: #f5f7fa;
+    background: var(--el-bg-color-page);
 }
 
 .p2p-content {
@@ -1305,8 +1421,8 @@ html, body {
 }
 
 .p2p-node-card {
-    background: #fff;
-    border: 1px solid #e4e7ed;
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color-lighter);
     border-radius: 8px;
     padding: 14px 16px;
     margin-bottom: 20px;
@@ -1323,13 +1439,13 @@ html, body {
     font-family: monospace;
     font-size: 18px;
     font-weight: 600;
-    color: #303133;
+    color: var(--el-text-color-primary);
     letter-spacing: 0.5px;
 }
 
 .p2p-node-id-toggle {
     font-size: 12px;
-    color: #409eff;
+    color: var(--el-color-primary);
     cursor: pointer;
     user-select: none;
     margin-left: 8px;
@@ -1344,18 +1460,18 @@ html, body {
 .p2p-node-id {
     font-family: monospace;
     font-size: 14px;
-    color: #303133;
+    color: var(--el-text-color-primary);
     word-break: break-all;
 }
 
 .p2p-node-id.offline {
-    color: #909399;
+    color: var(--el-text-color-secondary);
 }
 
 .p2p-section-title {
     font-size: 14px;
     font-weight: 600;
-    color: #303133;
+    color: var(--el-text-color-primary);
     margin: 16px 0 10px;
     display: flex;
     align-items: center;
@@ -1363,8 +1479,8 @@ html, body {
 }
 
 .p2p-pending-section {
-    background: #fdf6ec;
-    border: 1px solid #f3d19e;
+    background: var(--el-color-warning-light-9);
+    border: 1px solid var(--el-color-warning-light-5);
     border-radius: 8px;
     padding: 12px 14px;
     margin-bottom: 8px;
@@ -1380,7 +1496,7 @@ html, body {
     justify-content: space-between;
     gap: 10px;
     padding: 8px 0;
-    border-bottom: 1px dashed #e6e2d5;
+    border-bottom: 1px dashed var(--el-border-color);
     flex-wrap: wrap;
 }
 
@@ -1398,13 +1514,13 @@ html, body {
 .p2p-pending-id {
     font-family: monospace;
     font-size: 12px;
-    color: #303133;
+    color: var(--el-text-color-primary);
     word-break: break-all;
 }
 
 .p2p-pending-time {
     font-size: 12px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
 }
 
 .p2p-pending-actions {
@@ -1422,7 +1538,7 @@ html, body {
 /* 表格内节点 ID 可点击复制 */
 .p2p-peer-id-copy {
     cursor: pointer;
-    color: #409eff;
+    color: var(--el-color-primary);
 }
 
 .p2p-peer-id-copy:hover {
@@ -1430,12 +1546,12 @@ html, body {
 }
 
 .p2p-unnamed {
-    color: #909399;
+    color: var(--el-text-color-secondary);
 }
 
 .p2p-empty {
     text-align: center;
-    color: #909399;
+    color: var(--el-text-color-secondary);
     padding: 30px 0;
     font-size: 13px;
 }
@@ -1479,14 +1595,14 @@ html, body {
 .p2p-qrcode-img {
     width: 240px;
     height: 240px;
-    border: 1px solid #e4e7ed;
+    border: 1px solid var(--el-border-color-lighter);
     border-radius: 6px;
 }
 
 .p2p-qrcode-id {
     font-family: monospace;
     font-size: 12px;
-    color: #606266;
+    color: var(--el-text-color-regular);
     word-break: break-all;
     text-align: center;
     padding: 0 12px;
@@ -1494,7 +1610,7 @@ html, body {
 
 .p2p-qrcode-tip {
     font-size: 12px;
-    color: #909399;
+    color: var(--el-text-color-secondary);
 }
 
 .p2p-authorize-body p {
@@ -1505,15 +1621,15 @@ html, body {
 .p2p-authorize-id {
     font-family: monospace;
     font-size: 12px;
-    background: #f5f7fa;
+    background: var(--el-bg-color-page);
     border-radius: 6px;
     padding: 10px 12px;
     word-break: break-all;
-    color: #303133;
+    color: var(--el-text-color-primary);
 }
 
 .p2p-authorize-tip {
-    color: #909399;
+    color: var(--el-text-color-secondary);
     font-size: 12px !important;
 }
 
@@ -1568,7 +1684,7 @@ html, body {
         max-width: none;
         margin-left: 0 !important;
         z-index: 5;
-        background: #fff;
+        background: var(--el-bg-color);
     }
 
     .note-list-aside.mobile-editor-behind {
@@ -1589,7 +1705,7 @@ html, body {
         right: 0;
         height: auto;
         z-index: 10;
-        background: #fff;
+        background: var(--el-bg-color);
     }
 
     .workspace {
@@ -1732,7 +1848,6 @@ html, body {
 
     /* Vditor 工具栏横向滚动 */
     .vditor-toolbar {
-        overflow-x: auto !important;
         flex-wrap: nowrap !important;
         -webkit-overflow-scrolling: touch;
     }
@@ -1815,7 +1930,7 @@ html, body {
 
     .note-list-search {
         padding: 8px 12px;
-        border-bottom: 1px solid #f0f2f5;
+        border-bottom: 1px solid var(--el-border-color-extra-light);
     }
 
     /* 统一 page-header：与 mobile-header 一致的高度与触摸目标 */

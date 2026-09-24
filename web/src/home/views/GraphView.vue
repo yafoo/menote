@@ -1,7 +1,10 @@
 <template>
 <div class="graph-container">
     <p v-if="loading" class="page-loading">加载中…</p>
-    <div v-show="!loading" ref="networkEl" class="graph-network"></div>
+    <div v-show="!loading" class="graph-network">
+        <!-- 画布本身是前后台共用的组件，配色/主题重绘都在里面 -->
+        <GraphCanvas :nodes="nodes" :edges="edges" @node-dblclick="openNote" />
+    </div>
 
     <div class="graph-legend">
         <div class="legend-item">
@@ -20,19 +23,23 @@
 </template>
 
 <script setup>
-import {ref, onMounted, onUnmounted, nextTick} from 'vue';
+import {ref, onMounted} from 'vue';
 import {useRouter} from 'vue-router';
 import {api} from '@/home/api/index.js';
 import {store} from '@/home/store/index.js';
+import GraphCanvas from '@/shared/GraphCanvas.vue';
 
 const router = useRouter();
 
-const networkEl = ref(null);
 const nodes = ref([]);
 const edges = ref([]);
 const loading = ref(true);
 
-let network = null;
+// 前台走 /api/pub/graph，服务端只返回公开笔记（含私密的边会被过滤掉）。
+// 后台的 /api/graph/data 能看到全部笔记，两边数据源不通用
+const openNote = (id) => {
+    router.push(`/note/${id}.html`);
+};
 
 onMounted(async () => {
     store.setTitle('知识图谱');
@@ -43,64 +50,5 @@ onMounted(async () => {
         edges.value = res.data.edges || [];
     }
     loading.value = false;
-    await nextTick();
-
-    // vis-network 约 615KB，按需加载——只有这个页面需要
-    const {DataSet, Network} = await import('vis-network/standalone');
-
-    const nodeSet = new DataSet(nodes.value.map(n => ({
-        id: n.id,
-        label: n.title || '无标题笔记',
-        title: n.title,
-        // 配色跟 public.css 的 --accent / --text 对齐（canvas 里读不到 CSS 变量，只能写死）
-        color: {
-            background: '#b96a42',
-            border: '#9c5433',
-            highlight: {background: '#cf8259', border: '#b96a42'},
-            hover: {background: '#cf8259', border: '#b96a42'}
-        },
-        font: {size: 14, color: '#3d3733', face: '-apple-system, "Segoe UI", "Microsoft YaHei", sans-serif'},
-        shape: 'dot',
-        size: 22,
-        borderWidth: 1.5,
-        shadow: {enabled: true, color: 'rgba(93, 72, 52, 0.16)', size: 8, x: 0, y: 2}
-    })));
-
-    const edgeSet = new DataSet(edges.value.map(e => ({
-        from: e.from,
-        to: e.to,
-        arrows: {to: {scaleFactor: 0.6}},
-        color: {color: '#ded4c8', highlight: '#b96a42', hover: '#b96a42'},
-        width: 1.2
-    })));
-
-    network = new Network(networkEl.value, {nodes: nodeSet, edges: edgeSet}, {
-        physics: {
-            enabled: true,
-            barnesHut: {
-                gravitationalConstant: -3000,
-                centralGravity: 0.3,
-                springLength: 150,
-                springConstant: 0.04,
-                damping: 0.09
-            }
-        },
-        interaction: {hover: true, tooltipDelay: 200},
-        edges: {width: 1, smooth: {type: 'continuous'}}
-    });
-
-    // 旧版是双击跳转（window.location.href），这里改成路由跳转，不再整页刷新
-    network.on('doubleClick', (params) => {
-        if(params.nodes.length > 0) {
-            router.push(`/note/${params.nodes[0]}.html`);
-        }
-    });
-});
-
-onUnmounted(() => {
-    if(network) {
-        network.destroy();
-        network = null;
-    }
 });
 </script>

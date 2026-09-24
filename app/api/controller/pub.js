@@ -1,4 +1,5 @@
 const Base = require('./base');
+const theme = require('../../../lib/theme');
 
 /**
  * 前台公开接口（匿名可访问）
@@ -26,10 +27,16 @@ class Pub extends Base
 
         // 只暴露白名单里的 key。menote_site 是自由键值表（管理员在后台随意增删），
         // 整表返回等于替管理员决定"这些都可以公开"——将来他加个不想公开的字段就泄露了
-        const PUBLIC_KEYS = ['sitename', 'description', 'keywords', 'siteurl', 'beian'];
+        //
+        // theme 在这里是"站点默认主题"：首屏脚本已经由服务端注入过一次
+        // （lib/theme.js），这里是给前端做兜底同步用的（外壳被静态缓存、
+        // dev server 直出等场景下注入会失效）
+        const PUBLIC_KEYS = ['sitename', 'description', 'keywords', 'siteurl', 'beian', 'theme'];
         const site = {};
         for(const key of PUBLIC_KEYS) {
-            if(config[key] !== undefined) site[key] = config[key];
+            if(config[key] === undefined) continue;
+            // 枚举值不能原样透出：库里万一存了脏值，前端会拿它去套 CSS 属性
+            site[key] = key === 'theme' ? theme.normalize(config[key]) : config[key];
         }
 
         this.$success('success', {site, cates});
@@ -41,8 +48,13 @@ class Pub extends Base
         const rows = Math.min(50, Math.max(1, parseInt(this.$request.get('rows', 20)) || 20));
         const cateId = parseInt(this.$request.get('cate_id', 0)) || 0;
 
+        // 点父分类要连子分类的笔记一起列（否则"生活随笔"里看不到它子分类
+        // "测试分类"下的笔记）。展开只走 is_public = 1 的子孙，
+        // 挂在公开分类底下的私密子分类不会被带进来——见 cate.getPublicCateIds
+        const cateIds = cateId ? await this.$model.cate.getPublicCateIds(cateId) : undefined;
+
         const [list, pagination] = await this.$model.note.getPublicNoteList({
-            cate_id: cateId || undefined,
+            cate_ids: cateIds,
             page,
             rows
         });

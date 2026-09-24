@@ -129,24 +129,48 @@
             <span class="username">{{ store.username || '未登录' }}</span>
         </div>
         <div class="tree-footer-actions">
-            <el-button size="small" text @click="store.navigateFromSidebar('/admin/settings')" title="站点设置">
-                <el-icon><Setting /></el-icon>
+            <!-- 主题切换：三个模式共用一个按钮，点一次轮换一次。
+                 当前模式写在 title 里，图标随之变化 -->
+            <el-button size="small" text @click="cycleThemeMode" :title="`主题：${THEME_LABELS[themeMode]}（点击切换）`">
+                <el-icon v-if="themeMode === 'light'"><Sunny /></el-icon>
+                <el-icon v-else-if="themeMode === 'dark'"><Moon /></el-icon>
+                <el-icon v-else><Monitor /></el-icon>
             </el-button>
-            <el-button size="small" text @click="store.navigateFromSidebar('/admin/tokens')" title="Token 管理">
-                <el-icon><Key /></el-icon>
-            </el-button>
-            <el-button size="small" text @click="store.navigateFromSidebar('/admin/graph')" title="知识图谱">
-                <el-icon><Share /></el-icon>
-            </el-button>
-            <el-button size="small" text @click="store.navigateFromSidebar('/admin/p2p')" title="P2P 管理">
-                <el-icon><Connection /></el-icon>
-            </el-button>
+
             <el-button size="small" text @click="goToHome" title="访问前台首页">
                 <el-icon><View /></el-icon>
             </el-button>
             <el-button size="small" text @click="logout" title="退出登录">
                 <el-icon><SwitchButton /></el-icon>
             </el-button>
+
+            <!-- 更多：低频入口收进弹出菜单，放在最右一格。
+                 原来这里一排七个图标挤在 220px 宽的侧栏里，每个都得靠 title 才知道
+                 是什么；收成三个常用 + 一个「更多」之后，图标能大一点、也认得出了。
+                 菜单项保留原图标，点完走 navigateFromSidebar（会先关掉移动端抽屉）。
+                 placement 用 top-end 而不是 top-start：按钮已经贴到最右边了，
+                 菜单若还是左对齐按钮就会往右飘出侧栏；右对齐向左展开才落在侧栏内 -->
+            <el-dropdown trigger="click" placement="top-end" @command="handleFooterCommand">
+                <el-button size="small" text title="更多">
+                    <el-icon><MoreFilled /></el-icon>
+                </el-button>
+                <template #dropdown>
+                    <el-dropdown-menu>
+                        <el-dropdown-item command="/admin/settings">
+                            <el-icon><Setting /></el-icon>站点设置
+                        </el-dropdown-item>
+                        <el-dropdown-item command="/admin/tokens">
+                            <el-icon><Key /></el-icon>Token 管理
+                        </el-dropdown-item>
+                        <el-dropdown-item command="/admin/graph">
+                            <el-icon><Share /></el-icon>知识图谱
+                        </el-dropdown-item>
+                        <el-dropdown-item command="/admin/p2p">
+                            <el-icon><Connection /></el-icon>P2P 管理
+                        </el-dropdown-item>
+                    </el-dropdown-menu>
+                </template>
+            </el-dropdown>
         </div>
     </div>
 </div>
@@ -157,6 +181,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { ref, reactive, computed, watch } from 'vue';
 import { request, api } from '@/admin/api/index.js';
 import { store } from '@/admin/store/index.js';
+import { THEME_LABELS, themeMode, cycleThemeMode } from '@/shared/theme.js';
 
 // 模板 el-tree 的 :data 来源。
 // 迁移前这是 setup() 末尾 return 块里的内联 computed（categories: computed(...)），
@@ -488,6 +513,12 @@ const createNoteInCate = async (cateId) => {
     } else {
         ElMessage.error(res.msg);
     }
+};
+
+// 底部「更多」菜单的命令处理。菜单项的 command 就是目标路由，
+// 直接复用侧栏跳转（会先关掉移动端抽屉，再 push）
+const handleFooterCommand = (path) => {
+    store.navigateFromSidebar(path);
 };
 
 const logout = async () => {

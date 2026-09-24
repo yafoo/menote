@@ -21,6 +21,7 @@
             clearable
             @input="onSearch"
             @clear="onSearch"
+            size="small"
         >
             <template #prefix>
                 <el-icon><Search /></el-icon>

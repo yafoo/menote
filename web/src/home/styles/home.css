@@ -1,10 +1,13 @@
 /* MeNote 前台样式
  *
- * 设计基调：暖纸书房 —— 简洁、干净、温馨、舒服。
- *   · 底色用暖纸白（不是冷灰），卡片是干净的白，靠 1px 暖边框分层而不是重阴影
- *   · 强调色用陶土色（terracotta），取代原来的 Element Plus 冷蓝 #409eff
+ * 设计基调：清透青瓷 —— 简洁、干净、温馨、舒服。
+ *   · 底色纯白，卡片同为白，只靠 1px 青灰描边分层——不用重阴影、也不用灰底，
+ *     页面更安静；描边因此要比"有色底"时代略明显一档，否则整页会散
+ *   · 圆角克制（4 / 6 / 8px），靠版心和留白去软化，不靠圆角，看着规整
+ *   · 强调色取自 Android 端的品牌色：薄荷 #76CCB5 作点缀，正文/链接用同色系
+ *     压深后的深青 #00796B（薄荷太亮，压在浅底上只有 1.9:1，读不了）
  *   · 正文用衬线字体 + 1.9 行高 + 限制行宽，长文读起来不累
- *   · 所有色值/圆角/阴影集中在 :root 变量里，改主题只动一处
+ *   · 所有色值/圆角/阴影集中在变量里，暗色态只换变量、不动任何结构
  *
  * 两条硬约束：
  *   1. **不引外部字体/CDN**。本项目有 P2P 直连与纯内网部署场景，外链字体会
@@ -13,42 +16,66 @@
  *      引组件库会让首屏凭空多几百 KB。
  *
  * 类名与旧 SSR 模板（public/static/app/style.css）保持一致，组件无需改 class。
+ *
+ * ── 主题（浅色 / 暗黑 / 自适应）───────────────────────────────────────
+ * 浅色令牌在 :root，暗色令牌在 [data-theme="dark"]。这个属性由外壳 HTML 里的
+ * 内联脚本在首屏解析 <body> 之前写好（web/home.html），JS 侧在
+ * web/src/shared/theme.js。
+ *
+ * 为什么用属性而不是 `@media (prefers-color-scheme: dark)`：
+ * 纯媒体查询做不到"用户手选浅色、但系统是暗色"这一种组合——媒体查询不认用户
+ * 的显式偏好。用属性的话两套令牌各写一遍就行，而且 Element Plus 的暗色主题
+ * 本来就挂在 html.dark 下，两个入口可以共用同一套机制。
+ *
+ * ⚠️ 两套令牌的对比度都复核过 WCAG AA（正文 ≥ 7:1，小字/链接 ≥ 4.5:1）。
+ *    改色值时请一并复核，别凭手感调——薄荷色系特别容易在浅底上翻车。
  */
 
-/* ── 设计令牌 ──────────────────────────────────────────────────────── */
+/* ── 设计令牌 · 浅色 ───────────────────────────────────────────────── */
 :root {
+    /* 让浏览器原生控件（滚动条、表单、下拉）也跟着切 */
+    color-scheme: light;
+
     /* 背景与表面 */
-    --bg: #faf7f2;              /* 暖纸底色 */
-    --bg-sunk: #f4efe7;         /* 下沉区域（图谱画布等） */
+    --bg: #ffffff;              /* 纯白底 */
+    --bg-sunk: #eef4f2;         /* 下沉区域：代码块、表头、图谱画布 */
     --surface: #ffffff;
-    --surface-warm: #fffdfa;
+    --surface-2: #f7faf9;       /* 比白再淡一点：表格斑马纹 */
 
-    /* 文字层级（暖灰，不用纯黑） */
-    --text: #3d3733;
-    --text-2: #6f665e;
-    --text-3: #9c9188;
-    --text-4: #b8ada1;
+    /* 文字层级（青灰，不用纯黑） */
+    --text: #1b2a27;
+    --text-2: #536661;
+    --text-3: #617570;
+    --text-4: #82948f;          /* 只用于装饰：分隔圆点、占位符、滚动条 */
 
-    /* 描边 */
-    --border: #ece4d9;
-    --border-soft: #f3ede4;
+    /* 描边。
+       底色和卡片现在都是纯白，分层全靠这两条线，所以比"青白纸底"时代
+       各深了一档——再淡就看不出边界，整页会散 */
+    --border: #dae5e2;
+    --border-soft: #e7eeec;
 
-    /* 强调色：陶土 */
-    --accent: #b96a42;
-    --accent-deep: #9c5433;
-    --accent-soft: #f7ece3;     /* 标签底 */
-    --accent-tint: #fdf8f4;     /* 极淡底 */
+    /* 强调色：青瓷 */
+    --accent: #00796b;          /* 链接、图标、实底按钮 */
+    --accent-deep: #00594e;     /* hover / 需要更重的强调文字 */
+    --accent-soft: #d5f2ea;     /* 标签底 */
+    --accent-soft-2: #c3ece1;   /* 标签 hover 底 */
+    --accent-tint: #eefaf6;     /* 极淡底、聚焦光晕 */
+    --accent-on: #ffffff;       /* 压在 accent 实底上的前景色 */
 
-    /* 阴影：暖色调、低透明度，避免"塑料卡片"感 */
-    --shadow-xs: 0 1px 2px rgba(93, 72, 52, 0.04);
-    --shadow-sm: 0 1px 3px rgba(93, 72, 52, 0.05), 0 1px 2px rgba(93, 72, 52, 0.03);
-    --shadow-md: 0 6px 20px rgba(93, 72, 52, 0.08), 0 2px 6px rgba(93, 72, 52, 0.04);
+    /* 品牌薄荷（Android 端 logo 同色）。只做点缀，不做正文/正文链接 */
+    --brand: #76ccb5;
 
-    /* 圆角 */
-    --r-sm: 8px;
-    --r-md: 12px;
-    --r-lg: 16px;
-    --r-pill: 999px;
+    /* 阴影：青灰色调、低透明度，避免"塑料卡片"感 */
+    --shadow-xs: 0 1px 2px rgba(16, 48, 42, 0.04);
+    --shadow-sm: 0 1px 3px rgba(16, 48, 42, 0.05), 0 1px 2px rgba(16, 48, 42, 0.03);
+    --shadow-md: 0 6px 20px rgba(16, 48, 42, 0.08), 0 2px 6px rgba(16, 48, 42, 0.04);
+
+    /* 圆角：整体收小一档。原来 8/12/16 偏"软"，改小后边界更清楚、更规整，
+       页面的松弛感交给留白去表达 */
+    --r-sm: 4px;
+    --r-md: 6px;
+    --r-lg: 8px;
+    --r-pill: 999px;            /* 药丸/圆形语义（标签、头像），不跟着上面三档收 */
 
     /* 版心 */
     --wrap: 860px;
@@ -62,6 +89,40 @@
                  "SimSun", serif;
     --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
                  "Liberation Mono", "Courier New", monospace;
+}
+
+/* ── 设计令牌 · 暗色 ───────────────────────────────────────────────── */
+/* 只换颜色，圆角/版心/字体沿用上面的定义 */
+[data-theme="dark"] {
+    color-scheme: dark;
+
+    --bg: #0f1716;
+    --bg-sunk: #0a1110;
+    --surface: #16211f;
+    --surface-2: #1b2725;
+
+    --text: #e7efed;
+    --text-2: #b0c1bc;
+    --text-3: #8a9c97;
+    --text-4: #64756f;
+
+    --border: #263430;
+    --border-soft: #1c2825;
+
+    /* 暗色下"强调"要更亮才读得清，深青换回品牌薄荷
+       （薄荷压在 #0f1716 上是 9.6:1，比深青的 3.4:1 好得多） */
+    --accent: #76ccb5;
+    --accent-deep: #9cf2db;
+    --accent-soft: #1a3a32;
+    --accent-soft-2: #215046;
+    --accent-tint: #132723;
+    --accent-on: #0f1716;       /* 薄荷实底上要压深色字 */
+
+    --brand: #76ccb5;
+
+    --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.24);
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
+    --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.24);
 }
 
 * {
@@ -216,22 +277,41 @@ input:focus-visible {
     background: var(--accent-tint);
 }
 
-/* 当前分类高亮：暖底 + 陶土字 */
+/* 子分类：比一级分类小一号、淡一档，读起来是"挂在前面那个分类下面"的。
+   数据里的图标通常也分得开（一级 📝/📚，子级 📁），两者叠加足够区分。
+   位置必须在 :hover / .router-link-active 之前——三者特异性相同（0,3,1），
+   靠源码顺序定胜负，放后面会把悬停和选中态的颜色盖掉 */
+.header .nav a.is-child {
+    font-size: 12.5px;
+    color: var(--text-3);
+    padding: 5px 10px;
+}
+
+/* 当前分类高亮：青底 + 深青字 */
 .header .nav a.router-link-active {
     color: var(--accent-deep);
     background: var(--accent-soft);
     font-weight: 500;
 }
 
-/* 管理后台入口：淡一点，别抢视线 */
+/* 管理后台入口：淡一点，别抢视线。但它是真链接，用 --text-3（≥4.5:1）而不是
+   --text-4（装饰级，浅色下只有 3:1） */
 .header .nav .admin-link {
-    color: var(--text-4);
+    color: var(--text-3);
     font-size: 13px;
 }
 
 .header .nav .admin-link:hover {
     color: var(--accent);
     background: var(--accent-tint);
+}
+
+/* 头部右侧：搜索框 + 主题切换。包一层是为了移动端能把两者摆成一行 */
+.header .header-tools {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: none;
 }
 
 /* 搜索框 */
@@ -275,7 +355,7 @@ input:focus-visible {
     border: none;
     border-radius: var(--r-pill);
     background: var(--accent);
-    color: #fff;
+    color: var(--accent-on);
     cursor: pointer;
     transition: background 0.18s, transform 0.18s;
 }
@@ -292,8 +372,41 @@ input:focus-visible {
     transform: scale(0.94);
 }
 
+/* 主题切换：点一次轮换 自适应 → 浅色 → 暗黑。
+   做成图标按钮而不是下拉，是因为访客九成只会"看一眼换个色"，
+   多一层弹层反而碍事。当前模式写在 title / aria-label 里。 */
+.header .theme-toggle {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    background: var(--surface);
+    color: var(--text-2);
+    cursor: pointer;
+    transition: color 0.18s, border-color 0.18s, background 0.18s;
+}
+
+.header .theme-toggle:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: var(--accent-tint);
+}
+
+.header .theme-toggle:active {
+    transform: scale(0.94);
+}
+
+.header .theme-toggle svg {
+    display: block;
+}
+
 /* ── 页面标题区 ───────────────────────────────────────────────────── */
-/* 区块标题：衬线字 + 左侧一道陶土竖线。
+/* 区块标题：衬线字 + 左侧一道青色竖线。
    试过"文字下方一道短横线"，但 28px 的短横在 4 字标题下看着像没对齐的下划线，
    改成左侧竖线后装饰意图明确得多。 */
 .section-title {
@@ -340,7 +453,7 @@ input:focus-visible {
     transition: border-color 0.22s, box-shadow 0.22s, transform 0.22s;
 }
 
-/* 左侧一道陶土细线，hover 时展开——比整卡变色更含蓄 */
+/* 左侧一道品牌薄荷→深青的渐变细线，hover 时展开——比整卡变色更含蓄 */
 .note-item::before {
     content: "";
     position: absolute;
@@ -349,7 +462,8 @@ input:focus-visible {
     bottom: 22px;
     width: 3px;
     border-radius: var(--r-pill);
-    background: var(--accent);
+    /* 上端用品牌薄荷、下端收进强调色——logo 上的那抹薄荷在这儿露个脸 */
+    background: linear-gradient(180deg, var(--brand), var(--accent));
     opacity: 0;
     transform: scaleY(0.3);
     transition: opacity 0.22s, transform 0.22s;
@@ -442,7 +556,7 @@ input:focus-visible {
 }
 
 .tag:hover {
-    background: #f1e0d2;
+    background: var(--accent-soft-2);
 }
 
 /* ── 笔记详情 ─────────────────────────────────────────────────────── */
@@ -485,7 +599,7 @@ input:focus-visible {
  *
  * ⚠️ 所有正文规则都带 `.page-note` 前缀（0,2,x），是为了压过 Vditor 自己的
  * `.vditor-reset h1`（0,1,1）。Vditor 的 CSS 由 NoteView 动态 import，产物里是
- * 独立 chunk，加载顺序在 public.css 之后——同优先级时后者胜，不加前缀会被它盖掉。
+ * 独立 chunk，加载顺序在 home.css 之后——同优先级时后者胜，不加前缀会被它盖掉。
  * 这里不用 !important，避免以后想局部覆盖时无路可走。 */
 .page-note .note-content {
     font-family: var(--font-read);
@@ -563,7 +677,7 @@ input:focus-visible {
     color: var(--text-4);
 }
 
-/* 引用块：暖底 + 左侧陶土线 */
+/* 引用块：极淡青底 + 左侧淡青线 */
 .page-note .note-content blockquote {
     margin: 1.5em 0;
     padding: 12px 20px;
@@ -584,13 +698,13 @@ input:focus-visible {
     background: var(--bg-sunk);
     color: var(--accent-deep);
     padding: 2px 6px;
-    border-radius: 5px;
+    border-radius: var(--r-sm);
 }
 
 .page-note .note-content pre {
     margin: 1.5em 0;
     padding: 16px 18px;
-    background: #faf7f2;
+    background: var(--bg-sunk);
     border: 1px solid var(--border-soft);
     border-radius: var(--r-md);
     overflow-x: auto;
@@ -643,7 +757,7 @@ input:focus-visible {
 }
 
 .page-note .note-content tr:nth-child(even) td {
-    background: #fdfcfa;
+    background: var(--surface-2);
 }
 
 /* 反向链接 */
@@ -739,7 +853,7 @@ input:focus-visible {
     margin-top: 6px;
 }
 
-/* 加载态：一个旋转的暖色圆环，比干巴巴的"加载中…"舒服 */
+/* 加载态：一个旋转的青色圆环，比干巴巴的"加载中…"舒服 */
 .page-loading {
     display: flex;
     flex-direction: column;
@@ -805,7 +919,7 @@ input:focus-visible {
     box-shadow: var(--shadow-sm);
 }
 
-/* 画布用"下沉"的暖色（比卡片白更深一档），靠色差界定区域。
+/* 画布用"下沉"的青灰色（比卡片更深一档），靠色差界定区域。
    之前画布自己也带 border，和 .graph-container 的边框叠成双层，显得笨重 */
 .graph-network {
     width: 100%;
@@ -886,31 +1000,91 @@ input:focus-visible {
         --wrap: 100%;
     }
 
+    /* 手机端头部：挤成两行紧凑排布（第一行 logo + 工具，第二行导航横向滚动）。
+       原来是三行堆叠（logo / 工具 / 导航），加上吸顶后固定占掉 162px、首屏内容
+       要到 184px 才开始，在 844px 高的手机上接近五分之一。
+       这里压到 92px：收内边距与行距、logo 缩一号，导航从 wrap 改成横向滚动，
+       这样头部高度也不再随分类数量增长（分类多了只会滚，不会长高）。 */
     .header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 14px;
-        padding: 16px 0 14px;
-        margin-bottom: 22px;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 10px;
+        padding: 10px 0;
+        margin-bottom: 18px;
     }
 
+    .header .logo {
+        flex: none;
+        gap: 7px;
+        font-size: 17px;
+    }
+
+    .header .logo .logo-img {
+        width: 22px;
+        height: 22px;
+    }
+
+    /* 工具区跟在 logo 右侧占满剩余宽度；min-width:0 让搜索框能被压缩 */
+    .header .header-tools {
+        order: 2;
+        flex: 1 1 0;
+        width: auto;
+        min-width: 0;
+    }
+
+    /* 导航独占一行 + 横向滚动：nowrap 是关键，wrap 会让它折行把头部顶高 */
     .header .nav {
         order: 3;
+        flex: 1 0 100%;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
         gap: 2px;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+
+    .header .nav::-webkit-scrollbar {
+        display: none;
     }
 
     .header .nav a {
-        padding: 5px 9px;
+        padding: 4px 9px;
+        font-size: 13px;
+    }
+
+    /* 子分类在手机上也跟着收一档。特异性同为 (0,3,1)，靠媒体查询在后面生效 */
+    .header .nav a.is-child {
+        padding: 4px 8px;
+        font-size: 12px;
+    }
+
+    /* 导航现在是 overflow-x: auto 的滚动容器，全局那条 outline-offset: 2px
+       会被上下边缘裁掉；这里改成内缩，焦点环落在链接自己的盒子里 */
+    .header .nav a:focus-visible {
+        outline-offset: -2px;
     }
 
     .header .search-form {
-        width: 100%;
-        padding-left: 16px;
+        flex: 1 1 auto;
+        min-width: 0;
+        padding: 1px 1px 1px 12px;
     }
 
     .header .search-form input {
-        flex: 1;
+        flex: 1 1 auto;
         width: auto;
+        min-width: 0;
+        font-size: 13px;
+        padding: 4px 0;
+    }
+
+    /* 主题按钮收到 30px 与搜索按钮对齐（搜索按钮保持桌面尺寸没缩）。
+       再往下缩到 26px 虽然还过 WCAG 2.2 的 24px 下限，但手机上点着费劲，
+       高度靠收紧搜索表单内边距找回来就够了 */
+    .header .theme-toggle {
+        width: 30px;
+        height: 30px;
     }
 
     .section-title {

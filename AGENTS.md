@@ -107,7 +107,7 @@ npm run test:smoke   # 前台 SPA 冒烟测试（需服务已在 3107 运行）
 {url: '/graph',         path: 'app/graph/graph'}
 ```
 
-它们现在全是 `return await this.spa();`（`app/app/controller/base.js` 的 `spa()` 读 `public/static/dist/home.html` 输出）。
+它们现在全是 `return await this.spa();`（`app/home/controller/index.js` 的 `spa()` 读 `public/static/dist/home.html`，注入站点默认主题后输出）。
 
 **为什么不能删**：前台用 history 路由，用户直接访问或刷新 `/note/123.html` 时浏览器先请求服务端；服务端没有对应路由就 404，此时 SPA 外壳还没加载，前端路由根本没机会介入。
 
@@ -134,13 +134,21 @@ npm run test:smoke   # 前台 SPA 冒烟测试（需服务已在 3107 运行）
 
 已有方法：`config`（站点白名单 key + 公开分类树）/ `notes` / `note` / `search` / `graph`。
 
+**分类是树，`pub.notes` 的 `cate_id` 要连子分类一起查**（2026-09-24 修）：只查自己那一层的话，挂在子分类下的笔记会"消失"——点「生活随笔」看不到「测试分类」里的笔记。做法是先用 `cate.getPublicCateIds()` 展开成「自己 + 全部公开子孙」，再走 `getPublicNoteList({cate_ids})` 的 `IN` 过滤。
+
+> ⚠️ 展开时**只收集 `is_public = 1` 的子孙**，这是安全边界不是优化。「公开父分类 → 私密子分类」是很自然的结构（本项目就是 `生活随笔(公开) > 测试分类(公开) > 三级分类(私密)`），把私密子孙的 id 一起带进查询虽然会被 `getPublicNoteList` 里那条 `c.is_public = 1` 兜住，但那是"恰好还有一层防线"，不该依赖。
+>
+> `is_show` **不参与**这里的过滤——它只控制导航显不显示，后台也没有对应开关（分类表单只有"公开/私密"），与"数据能不能被看到"无关。
+>
+> 同一层的 `getPublicNotes()`（无调用方）和 `searchNotes()` 的 `cate_id` 仍是**精确匹配、不展开子分类**；前台的搜索页不传 `cate_id` 所以不受影响，后台搜索传的是用户在树里点中的那个节点，精确匹配是想要的语义。
+
 **迁移时顺带修掉的 3 处泄露**（旧 SSR 实现就有）：
 
 | 位置 | 旧行为 | 现在 |
 |---|---|---|
 | `pub.graph` 的边 | `note_link` 全表 select → 把「私密↔私密」的边吐给匿名用户，等于泄露私密笔记数量与关联结构 | 四个 INNER JOIN 把两端都卡在 `is_public=1` |
 | 反向链接 | `getBacklinks` 会带出私密笔记标题 | 改用 `getPublicBacklinks` |
-| 站点配置 | `menote_site` 整表返回（管理员可自由加 key，等于替他决定"这些都能公开"） | 白名单 5 个 key：`sitename`/`description`/`keywords`/`siteurl`/`beian` |
+| 站点配置 | `menote_site` 整表返回（管理员可自由加 key，等于替他决定"这些都能公开"） | 白名单 6 个 key：`sitename`/`description`/`keywords`/`siteurl`/`beian`/`theme`（`theme` 还会过一遍 `lib/theme.js` 的 `normalize`，防止库里的脏值被拿去套 CSS 属性） |
 
 ### Vditor 运行时资源（`web/vendor-vditor.mjs`）
 
@@ -164,6 +172,57 @@ npm run test:smoke   # 前台 SPA 冒烟测试（需服务已在 3107 运行）
 想恢复某个渲染器：把键名加进 `ENABLED_OPTIONAL`（`mermaid` / `graphviz` / `echarts` / `markmap` / `abcjs` / `smiles` / `flowchart` / `wavedrom` / `plantuml` / `mathjax`）。关掉的后果只是「该 ``` 代码块回落成源码显示」，不影响编辑保存。
 
 已知局限：Vditor 的「关于」面板硬编码了 `https://unpkg.com/vditor/dist/images/logo.png`（不走 cdn 选项，改不了），纯离线环境下该 logo 是裂图。
+
+
+## 主题（浅色 / 暗黑 / 自适应）
+
+前台和后台都支持 `auto`（跟随系统）/ `light` / `dark` 三种模式，共用同一套机制。实现分散在 5 个地方，改主题相关的东西前先看这张表：
+
+| 位置 | 职责 |
+|---|---|
+| `web/home.html`、`web/admin.html` | **首屏防闪**：`<head>` 里的内联脚本在解析 `<body>` 之前就写好 `data-theme` / `data-theme-mode` / `html.dark`。两份内容必须一致 |
+| `lib/theme.js`（服务端） | 读站点默认主题（5 秒内存缓存），替换外壳里的 `__MENOTE_THEME__` 占位符 |
+| `web/src/shared/theme.js`（前端） | `applyTheme` / `setThemeMode` / `cycleThemeMode` / `previewTheme` / `initTheme` / `syncFromSite` + 两个 ref |
+| `web/src/home/styles/home.css` | 前台令牌：`:root` 浅色 + `[data-theme="dark"]` 暗色 |
+| `web/src/admin/styles/admin.css` | 后台**只**覆盖 Element Plus 的 `--el-color-primary` 系列和几个中性底色 |
+
+### 优先级
+
+```
+localStorage['menote-theme']  >  站点默认（后台「站点设置」的 theme）  >  auto
+```
+
+- 访客点头部（前台）/ 侧栏底部（后台）的图标按钮 → 依次轮换 auto → light → dark → auto，并写进 localStorage，此后不再跟随站点默认
+- 站点默认存在 `menote_site` 表 `key='theme'`。老库没有这一行时由 `app/api/controller/site.js` 的 `get()` 幂等补行（`model/site.js` 的 `ensureConfig`），不必手动执行 SQL
+- 保存设置时会校验取值合法性并清掉 `lib/theme.js` 的缓存，管理员刷新即见效
+
+### 为什么不用纯 CSS 的 `@media (prefers-color-scheme: dark)`
+
+纯媒体查询能做到零 JS 自适应，但表达不了「用户手动选了浅色、系统却是暗色」——媒体查询不认用户的显式偏好。改用 `<html>` 属性 + 首屏脚本后，浅/暗各写一套令牌就行，顺带把 Element Plus 认的 `html.dark` 一起管了。
+
+### 四个容易踩的坑
+
+1. **Element Plus 的暗色变量会重定义 `--el-color-primary` 系列**（`element-plus/theme-chalk/dark/css-vars.css`，挂在 `html.dark` 下，必须在 `main.js` 里显式 import——它属于 opt-in）。只改 `:root` 的话，切到暗色 primary 会变回默认蓝 `#409eff`。所以 `admin.css` 里 **`:root` 和 `html.dark` 两套都要写**。
+2. **`--el-color-primary-rgb` 在暗色下不会被 Element Plus 覆盖**（它自己的暗色文件里漏了这条），必须自己补，否则 `rgba(var(--el-color-primary-rgb), …)` 的地方还留着旧的蓝色分量。
+3. **canvas 里读不到 CSS 变量**。`GraphView.vue` 用 `getComputedStyle(document.documentElement).getPropertyValue('--accent')` 运行时取值，并 `watch(resolvedTheme)` 逐项 `DataSet.update` 重绘——**不要重建 Network**，那会把物理布局的落点重置，整张图会跳一下。另外 vis-network 把节点 label 画在节点**下方**（画布底色上），字号颜色要对 `--text` 而不是节点填充色。
+4. **Vditor 的语法高亮配色是渲染时按 `hljs.style` 动态挂 `<link>` 的**，token 颜色写死在 CSS 里，换 CSS 变量救不了。`NoteView.vue` 按当前主题在 `github` / `github-dark` 之间切（自托管目录里只有 github 系三套，见 `web/vendor-vditor.mjs` 的 `CODE_THEMES`），并在主题变化时重渲染。
+
+### 色板来源与生成规则
+
+品牌色取自 Android 端 `colors.xml`：薄荷 `#76CCB5` 是 logo 底色，`m3_primary` `#00695C` 是深青。
+
+- 前台浅色态用**深青 `#00796b`** 做链接和实底按钮（薄荷压浅底只有 1.9:1，读不了），薄荷只做点缀（logo、卡片 hover 竖线的渐变上端）
+- 前台暗色态反过来：`--accent` 换成薄荷（压在 `#0f1716` 上是 9.6:1），实底按钮上的前景色改用 `--accent-on`（浅色=白 / 暗色=近黑）
+- 后台浅色 `#00796b`；暗色 `#1d887c`——在「白字压实底按钮」4.32:1 与「主色当文字压暗底」4.27:1 之间取的平衡点
+- Element Plus 色阶按它自己的公式生成：
+  - 浅色：`light-N = mix(#fff, primary, N*10%)`、`dark-2 = mix(#000, primary, 80%)`
+  - 暗色：`light-3/5/7/8/9 = mix(#141414, primary, 70%/50%/30%/20%/10%)`、`dark-2 = mix(primary, #fff, 20%)`
+  - ⚠️ **暗色态 light-N 的混色方向与浅色态相反**，照抄浅色公式会算反
+- 所有前景/背景组合都过过 WCAG AA（正文 ≥ 7:1，小字与链接 ≥ 4.5:1）。薄荷色系特别容易在浅底上翻车，**改色值后请重新复核，别凭手感调**
+
+### 回归测试
+
+`npm run test:smoke` 的第 6 组专门覆盖主题：本机选浅色/暗黑、系统偏好两个方向的自适应、切换按钮的轮换与持久化。判据取的是 `data-theme` 属性 **加上** `body` 算出来的实际背景色——只看属性证明不了 CSS 令牌真的生效。
 
 
 ## 关键约定
@@ -251,10 +310,12 @@ web/src/admin/            # 后台（hash 路由，引 Element Plus）
 
 web/src/home/             # 前台（history 路由，不引 Element Plus）
 ├── main.js / App.vue    # 入口 + header/nav/搜索/footer 布局
+│                        # nav 渲染的是 flattenCates(cates, true) 拍平后的**全部层级**，
+│                        # 只渲染顶层的话二级分类在导航里看不到；depth>0 加 .is-child 走次级样式
 ├── api/index.js         # 全走 /api/pub/*
 ├── store/index.js       # reactive + init() + setTitle()
 ├── router/index.js      # history 路由，5 条全懒加载
-├── utils/index.js       # formatTime / splitTags / flattenCates
+├── utils/index.js       # formatTime / splitTags / flattenCates（第二参 withDepth）
 ├── components/          # NoteList（首页/分类/搜索三页共用，prop 控制元信息）
 ├── views/               # HomeView / CateView / SearchView / NoteView / GraphView
 └── styles/home.css      # 从旧 public/static/app/style.css 迁移，类名不变
@@ -343,7 +404,17 @@ admin 显示：本节点 ID 主显前 10 位短 ID（`shortNodeId` computed）�
 ## 开发注意事项
 
 ### 服务器重启
-3107 端口服务由用户经宝塔启动（`D:\BtSoft\nodejs\nodejs\node.exe .\server.js`），非 agent 启动。改了后端代码需请用户重启或确认；静态文件（`public/`）改盘即生效，无需重启。改前端（`web/`）后必须 `npm run build`，产物名带 hash 无需手工 bump 版本参数。
+3107 端口服务由用户经宝塔启动（`D:\BtSoft\nodejs\nodejs\node.exe .\server.js`），非 agent 启动。改后端代码前先确认要不要重启，按下面这张表判断（**2026-09-24 实测修正**，原来说的"一律要重启"不准确）：
+
+| 改动位置 | dev（`npm run dev`，NODE_ENV=development） | 生产（`npm start`） |
+|---|---|---|
+| `app/**`（控制器、模型） | **自动重载，无需重启** | 需重启 |
+| `lib/**`、`config/**`、`server.js` | 需重启 | 需重启 |
+| `public/**`（含构建产物） | 改盘即生效 | 改盘即生效 |
+
+原因：`config/app.js` 的 `app_debug` 打开时，`jj.js/lib/app.js:110` 会调 `types.watch()` 起一个文件监听（本意是自动生成 `types.js`），而它的 `createFile()` 里顺带 `delete require.cache[变更文件]`（`lib/types.js:106`）——于是 `app/` 下的控制器和模型被重新 require 时就拿到了新代码。**这是监听器的副作用，不是 jj.js 承诺的 HMR**，且只覆盖 `app/` 目录，别把它当热更新用。
+
+改前端（`web/`）后必须 `npm run build`，产物名带 hash 无需手工 bump 版本参数。
 
 ### Android 构建
 ```powershell

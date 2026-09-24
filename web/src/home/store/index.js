@@ -1,5 +1,6 @@
 import { reactive } from 'vue';
 import { api } from '@/home/api/index.js';
+import { syncFromSite } from '@/shared/theme.js';
 
 // 前台全局状态。
 //
@@ -19,6 +20,10 @@ export const store = reactive({
             this.site = res.data.site || {};
             this.cates = res.data.cates || [];
         }
+        // 站点默认主题的兜底：正常情况下首屏脚本已经从服务端注入的外壳里读到了
+        // （见 lib/theme.js），这里只是万一外壳没被注入时（静态缓存、dev server
+        // 直出）再对齐一次。本机手动选过的用户不受影响
+        syncFromSite(this.site.theme);
         this.ready = true;
     },
 

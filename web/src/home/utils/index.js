@@ -30,16 +30,20 @@ export function splitTags(keywords) {
  *
  * 服务端 getPublicCateTree 返回的是嵌套结构（子分类在 children 里），
  * 而 /cate/:id 可能指向任意层级，所以查找前要先拍平——
- * 否则直接访问子分类 URL（如 /cate/4）会找不到分类名
+ * 否则直接访问子分类 URL（如 /cate/4）会找不到分类名。
+ *
+ * withDepth 为 true 时额外挂一个 depth（顶层 0、子级 1……），
+ * 导航需要靠它把子分类渲染得比一级分类轻一点。
+ * 为 false（默认）时返回原对象，不改变既有调用方的行为。
  */
-export function flattenCates(tree) {
+export function flattenCates(tree, withDepth = false) {
     const out = [];
-    const walk = (list) => {
+    const walk = (list, depth) => {
         for(const item of list || []) {
-            out.push(item);
-            if(item.children && item.children.length) walk(item.children);
+            out.push(withDepth ? {...item, depth} : item);
+            if(item.children && item.children.length) walk(item.children, depth + 1);
         }
     };
-    walk(tree);
+    walk(tree, 0);
     return out;
 }

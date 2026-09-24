@@ -48,6 +48,10 @@ import 'element-plus/es/components/tabs/style/css';
 import 'element-plus/es/components/tag/style/css';
 import 'element-plus/es/components/tooltip/style/css';
 import 'element-plus/es/components/tree/style/css';
+// 暗色主题变量：Element Plus 把整套暗色值挂在 html.dark 下，属于 opt-in，
+// 不引这个文件的话加 .dark 类也没有任何效果（见 shared/theme.js 的 applyTheme）。
+// 必须放在 admin.css 之前——admin.css 里的 html.dark 块要能盖掉这里的默认蓝
+import 'element-plus/theme-chalk/dark/css-vars.css';
 import 'vditor/dist/index.css';
 import './styles/admin.css';
 
@@ -64,8 +68,8 @@ import {
 // 一个 defineComponent + 内联 SVG path，全量进包非常浪费。
 import {
     ArrowLeft, Check, Connection, CopyDocument, DArrowLeft, Delete, Grid,
-    InfoFilled, Key, Menu, MoreFilled, Plus, Refresh, Search, Setting,
-    Share, SwitchButton, Top, User, View
+    InfoFilled, Key, Menu, Monitor, Moon, MoreFilled, Plus, Refresh, Search,
+    Setting, Share, Sunny, SwitchButton, Top, User, View
 } from '@element-plus/icons-vue';
 import App from './App.vue';
 import { router } from './router/index.js';
@@ -81,8 +85,8 @@ const COMPONENTS = {
 // 图标：模板里按 PascalCase 使用（<Plus />），注册名即变量名
 const ICONS = {
     ArrowLeft, Check, Connection, CopyDocument, DArrowLeft, Delete, Grid,
-    InfoFilled, Key, Menu, MoreFilled, Plus, Refresh, Search, Setting,
-    Share, SwitchButton, Top, User, View
+    InfoFilled, Key, Menu, Monitor, Moon, MoreFilled, Plus, Refresh, Search,
+    Setting, Share, Sunny, SwitchButton, Top, User, View
 };
 
 const app = createApp(App);

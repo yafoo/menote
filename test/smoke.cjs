@@ -5,12 +5,14 @@
  * 后台那套 CDP 测试需要 mock 登录态与接口，本文件刻意只覆盖**公开、无副作用、
  * 数据可预期**的部分，所以能在任何有数据的实例上直接跑。
  *
- * 覆盖三件事：
+ * 覆盖五组：
  *   1. 服务端兜底：/、/note/:id.html、/cate/:id、/search、/graph 都返回 SPA 外壳
  *      （history 路由下，直接访问/刷新这些 URL 走的是服务端路由，缺一条就 404）
  *   2. 静态资源可达：外壳里引用的 js/css、以及 Vditor 运行时资源（cdn 同源要求）
  *   3. 浏览器渲染：5 条路由的 DOM 真的渲染出来（Markdown 已过 Vditor.preview、
  *      图谱 canvas 已创建、异常页给出提示文案）
+ *   4. 分类页之间切换：同一条路由只换 params 时内容必须跟着换（组件复用回归）
+ *   5. 主题：浅色/暗黑/自适应三种模式的解析结果，以及切换按钮的轮换与持久化
  *
  * 用法：
  *   npm run dev            # 另开一个终端，先把服务跑起来（3107）
@@ -185,7 +187,16 @@ const pass = (msg) => console.log('PASS  ' + msg);
         process.exit(2);
     }
     ROUTES.find(r => r.name === '搜索页').url = '/search?q=' + encodeURIComponent(keyword);
-    console.log(`（取到公开数据：笔记 #${realNoteId}、分类 #${realCateId}、搜索词「${keyword}」）\n`);
+
+    // 公开分类树拍平（含子分类）：第 6 组"分类页之间切换"要拿两个不同分类，
+    // 并要能按 id 反查分类名。导航里渲染的就是拍平后的全部层级。
+    const flatCates = [];
+    (function walk(list) {
+        for(const c of list || []) { flatCates.push(c); walk(c.children); }
+    })(cfgRes?.data?.cates || []);
+    const cateName = new Map(flatCates.map(c => [String(c.id), c.name]));
+
+    console.log(`（取到公开数据：笔记 #${realNoteId}、分类 #${realCateId}、搜索词「${keyword}」、公开分类 ${flatCates.length} 个）\n`);
 
     // ── 1. 服务端兜底 + 外壳引用 ────────────────────────────────────
     console.log('── 1. 服务端路由兜底 ──');
@@ -346,6 +357,132 @@ const pass = (msg) => console.log('PASS  ' + msg);
             ? pass(`提交「${keyword}」→ ${after.href.replace(ORIGIN, '')}，命中 ${after.count} 条`)
             : fail(`提交「${keyword}」后跳转异常：href="${after.href}" 关键词="${after.q}" 命中 ${after.count} 条`);
     }
+
+    // ── 6. 分类页之间切换：同一条路由只换 params ────────────────────
+    //
+    // 给"Vue Router 复用组件实例"这类回归兜底：/cate/3 → /cate/4 是同一条路由
+    // 只换 params，组件**不会重新挂载**。如果组件把 route.params 在 setup 里
+    // 存成了常量、加载逻辑只写在 onMounted，URL 和导航高亮会变，
+    // 但标题和列表还是上一个分类的（2026-09-24 真实踩过）。
+    //
+    // 所以断言必须同时覆盖三样：URL、导航高亮、**页面内容真的换了**。
+    // 只看 URL 是抓不到这个 bug 的。
+    console.log('\n── 6. 分类页之间切换（同路由换 params）──');
+    if(flatCates.length >= 2) {
+        const cateA = flatCates[0];
+        const cateB = flatCates[1];
+        await cdp.send('Page.navigate', {url: `${ORIGIN}/cate/${cateA.id}`});
+        await sleep(2200);
+        const beforeCate = await evaluate(`(() => ({
+            h1: document.querySelector('.cate-header h1')?.textContent.trim() || '',
+            count: document.querySelectorAll('.page-cate .note-item').length
+        }))()`);
+
+        // 走真实用户路径：点导航里指向 B 的那个链接，而不是直接改 URL
+        const clicked = await evaluate(`(() => {
+            const a = document.querySelector('.header .nav a[href="/cate/${cateB.id}"]');
+            if(!a) return false;
+            a.click();
+            return true;
+        })()`);
+
+        if(!clicked) {
+            fail(`导航里找不到指向 /cate/${cateB.id} 的链接（子分类没渲染进导航？）`);
+        } else {
+            await sleep(2200);
+            const afterCate = await evaluate(`(() => ({
+                path: location.pathname,
+                h1: document.querySelector('.cate-header h1')?.textContent.trim() || '',
+                active: document.querySelector('.header .nav a.router-link-active')?.getAttribute('href') || '',
+                docTitle: document.title
+            }))()`);
+            const ok = afterCate.path === `/cate/${cateB.id}`
+                && afterCate.active === `/cate/${cateB.id}`
+                && afterCate.h1.includes(cateB.name)
+                && afterCate.h1 !== beforeCate.h1
+                && afterCate.docTitle.includes(cateB.name);
+            ok
+                ? pass(`「${cateA.name}」→ 点导航「${cateB.name}」：标题=${afterCate.h1}、高亮已跟上、文档标题已更新`)
+                : fail(`切换后内容没换：path=${afterCate.path} 标题="${afterCate.h1}"（切换前 "${beforeCate.h1}"）高亮=${afterCate.active} 文档标题="${afterCate.docTitle}"`);
+        }
+    } else {
+        console.log(`   跳过：公开分类只有 ${flatCates.length} 个，需要至少 2 个才能验证切换`);
+    }
+
+    // ── 7. 主题：浅色 / 暗黑 / 自适应 ────────────────────────────────
+    //
+    // 只验证"外壳内联脚本 + CSS 令牌"这条链路，不碰站点默认值（改它要写库）。
+    // 站点默认的注入由 lib/theme.js 负责，属于服务端逻辑，不在这里覆盖。
+    //
+    // 判据取自 data-theme 属性 + body 实际算出来的背景色——后者能同时证明
+    // CSS 里的 [data-theme="dark"] 令牌真的生效了，而不只是属性写对了。
+    //
+    // ⚠️ 这两个值跟着 home.css 的 --bg 走，改令牌记得回来同步：
+    //    浅色 = --bg #ffffff，暗色 = --bg #0f1716
+    console.log('\n── 7. 主题（浅色 / 暗黑 / 自适应）──');
+    const BG_LIGHT = 'rgb(255, 255, 255)';
+    const BG_DARK = 'rgb(15, 23, 22)';
+
+    const themeState = async () => {
+        await cdp.send('Page.navigate', {url: ORIGIN + '/'});
+        await sleep(2000);
+        return await evaluate(`(() => {
+            const el = document.documentElement;
+            return {
+                theme: el.getAttribute('data-theme'),
+                mode: el.getAttribute('data-theme-mode'),
+                dark: el.classList.contains('dark'),
+                bg: getComputedStyle(document.body).backgroundColor,
+                toggle: !!document.querySelector('.theme-toggle')
+            };
+        })()`);
+    };
+    const setLocalTheme = (v) => evaluate(
+        v === null ? `localStorage.removeItem('menote-theme')` : `localStorage.setItem('menote-theme', ${JSON.stringify(v)})`
+    );
+
+    await setLocalTheme('light');
+    let ts = await themeState();
+    (ts.theme === 'light' && ts.dark === false && ts.bg === BG_LIGHT && ts.toggle)
+        ? pass(`本机选浅色 → data-theme=light、html.dark 缺席、body=${ts.bg}`)
+        : fail(`本机选浅色异常：theme=${ts.theme} dark=${ts.dark} bg=${ts.bg} 切换按钮=${ts.toggle}`);
+
+    await setLocalTheme('dark');
+    ts = await themeState();
+    (ts.theme === 'dark' && ts.dark === true && ts.bg === BG_DARK)
+        ? pass(`本机选暗黑 → data-theme=dark、html.dark 生效、body=${ts.bg}`)
+        : fail(`本机选暗黑异常：theme=${ts.theme} dark=${ts.dark} bg=${ts.bg}`);
+
+    // 自适应：清掉本机偏好，交给系统偏好。用 CDP 模拟系统主题，两个方向都要对
+    for(const sys of ['dark', 'light']) {
+        await setLocalTheme(null);
+        await cdp.send('Emulation.setEmulatedMedia', {features: [{name: 'prefers-color-scheme', value: sys}]});
+        ts = await themeState();
+        const want = sys === 'dark' ? BG_DARK : BG_LIGHT;
+        (ts.theme === sys && ts.bg === want)
+            ? pass(`自适应 · 系统 ${sys} → data-theme=${ts.theme}、body=${ts.bg}`)
+            : fail(`自适应 · 系统 ${sys} 异常：theme=${ts.theme} bg=${ts.bg}`);
+    }
+    await cdp.send('Emulation.setEmulatedMedia', {features: []});
+
+    // 切换按钮：auto → light → dark → auto 走一圈，且选择要落进 localStorage
+    await setLocalTheme(null);
+    ts = await themeState();
+    const start = ts.mode;
+    const cycle = [];
+    for(let i = 0; i < 3; i++) {
+        await evaluate(`document.querySelector('.theme-toggle').click()`);
+        await sleep(300);
+        cycle.push(await evaluate(`document.documentElement.getAttribute('data-theme-mode')`));
+    }
+    const back = cycle[2] === start;
+    const stored = await evaluate(`localStorage.getItem('menote-theme')`);
+    (back && stored === start)
+        ? pass(`切换按钮轮换 ${start} → ${cycle.join(' → ')}，已写入 localStorage`)
+        : fail(`切换按钮轮换异常：${start} → ${cycle.join(' → ')}，localStorage=${stored}`);
+
+    await setLocalTheme(null);
+    await cdp.send('Emulation.setEmulatedMedia', {features: []});
 
     ws.close();
     browser.kill();

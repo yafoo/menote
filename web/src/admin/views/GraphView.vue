@@ -12,7 +12,10 @@
         </div>
     </div>
     <div class="graph-content" v-loading="loading">
-        <div id="graph-network" class="graph-network-box"></div>
+        <!-- 画布本身是前后台共用的组件，配色/主题重绘都在里面 -->
+        <div class="graph-network-box">
+            <GraphCanvas :nodes="nodesData" :edges="edgesData" @node-dblclick="openNote" />
+        </div>
         <div class="graph-info">
             共 <strong>{{ nodesData.length }}</strong> 个笔记节点，<strong>{{ edgesData.length }}</strong> 条双向链接。单击拖动布局，双击节点打开笔记。
         </div>
@@ -21,61 +24,18 @@
 </template>
 
 <script setup>
-import { DataSet, Network } from 'vis-network/standalone';
 import { ElMessage } from 'element-plus';
-import { ref, onMounted, onUnmounted, nextTick } from 'vue';
+import { ref, onMounted } from 'vue';
 import { request } from '@/admin/api/index.js';
 import { store } from '@/admin/store/index.js';
+import GraphCanvas from '@/shared/GraphCanvas.vue';
 
 const loading = ref(true);
 const nodesData = ref([]);
 const edgesData = ref([]);
-let network = null;
 
-const render = () => {
-    if(!document.getElementById('graph-network')) return;
-    const nodes = new DataSet(nodesData.value.map(n => ({
-        id: n.id,
-        label: n.title || '无标题',
-        title: n.title || '无标题',
-        color: {
-            background: '#409eff',
-            border: '#337ecc',
-            highlight: {background: '#66b1ff', border: '#409eff'}
-        },
-        font: {size: 13, color: '#333'},
-        shape: 'dot',
-        size: 16
-    })));
-    const edges = new DataSet(edgesData.value.map(e => ({
-        from: e.from,
-        to: e.to,
-        arrows: 'to',
-        color: {color: '#c0c4cc', highlight: '#409eff'}
-    })));
-    if(network) { network.destroy(); network = null; }
-    network = new Network(document.getElementById('graph-network'), {nodes, edges}, {
-        physics: {
-            enabled: true,
-            barnesHut: {
-                gravitationalConstant: -3000,
-                centralGravity: 0.3,
-                springLength: 150,
-                springConstant: 0.04,
-                damping: 0.09
-            }
-        },
-        interaction: {hover: true, tooltipDelay: 200},
-        edges: {width: 1, smooth: {type: 'continuous'}}
-    });
-    network.on('doubleClick', params => {
-        if(params.nodes.length > 0) {
-            // admin 内打开笔记：写入 store 缓存并切回工作区
-            store.openNote(params.nodes[0]);
-        }
-    });
-};
-
+// 后台走 /api/graph/data，返回全部笔记（含私密草稿）。
+// 前台的 /api/pub/graph 是匿名接口，只吐公开笔记，后台不能拿它当数据源
 const refresh = async () => {
     loading.value = true;
     try {
@@ -83,8 +43,6 @@ const refresh = async () => {
         if(res.state === 1) {
             nodesData.value = res.data.nodes || [];
             edgesData.value = res.data.edges || [];
-            await nextTick();
-            render();
         } else {
             ElMessage.error(res.msg || '加载失败');
         }
@@ -95,8 +53,10 @@ const refresh = async () => {
     }
 };
 
+// 双击节点：写入 store 缓存并切回工作区
+const openNote = (id) => {
+    store.openNote(id);
+};
+
 onMounted(refresh);
-onUnmounted(() => {
-    if(network) network.destroy();
-});
 </script>
