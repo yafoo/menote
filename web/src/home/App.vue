@@ -8,7 +8,12 @@
         </RouterLink>
         <nav class="nav">
             <!-- 分类图标来自数据（cate.icon），所以导航里保留 emoji；
-                 "图谱"/"管理" 是固定入口，去掉装饰性 emoji 更干净。
+                 "图谱"/"管理" 是固定入口，图标写死在这里。
+                 🌐 而不是 🕸️：🕸️ 语义最贴（节点+连线），但在 13.5px 下是
+                 一片很淡的灰网，读起来像禁用态，跟旁边彩色的 📝/📁 不搭；
+                 🗺️/🔗 缩到这一档同样偏暗。🌐 的蓝色经纬线既像网络、又有颜色。
+                 ⚙️ 是后台的通用语义，且这个字体下是淡紫色（不是灰的）。
+                 两个都带 VS16（U+FE0F），否则会按文本样式渲染成黑白细线。
                  分类要连子分类一起列（拍平）——只渲染顶层的话，
                  "测试分类"这种二级分类在导航里根本看不到 -->
             <RouterLink
@@ -19,8 +24,8 @@
             >
                 {{cate.icon}} {{cate.name}}
             </RouterLink>
-            <RouterLink to="/graph">图谱</RouterLink>
-            <a href="/admin" class="admin-link" title="管理后台">管理</a>
+            <RouterLink to="/graph">🌐 图谱</RouterLink>
+            <a href="/admin" class="admin-link" title="管理后台">⚙️ 管理</a>
         </nav>
         <div class="header-tools">
             <form class="search-form" @submit.prevent="doSearch">
