@@ -36,7 +36,7 @@
             <el-table-column label="过期时间" width="160">
                 <template #default="{ row }">
                     <span v-if="row.expire_time === 0">永不过期</span>
-                    <span v-else>{{ formatTime(row.expire_time) }}</span>
+                    <span v-else>{{ formatDateTime(row.expire_time) }}</span>
                 </template>
             </el-table-column>
             <el-table-column label="操作" width="120" fixed="right">
@@ -98,6 +98,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { ref, reactive, onMounted, watch } from 'vue';
 import { request } from '@/admin/api/index.js';
 import { TOKEN_PERM_GROUPS } from '@/admin/permissions.js';
+import { formatDateTime } from '@/admin/utils/index.js';
 
 const loading = ref(true);
 const creating = ref(false);
@@ -293,12 +294,6 @@ const copyToken = (token) => {
     }).catch(() => {
         ElMessage.error('复制失败');
     });
-};
-
-const formatTime = (timestamp) => {
-    if(!timestamp) return '';
-    const d = new Date(timestamp * 1000);
-    return d.toLocaleString('zh-CN');
 };
 
 onMounted(() => {

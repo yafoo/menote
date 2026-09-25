@@ -41,7 +41,7 @@
             <div class="note-item-title">
                 <el-icon v-if="note.is_pinned" class="pin-icon"><Top /></el-icon>
                 <span class="note-item-name">{{ note.title || '无标题' }}</span>
-                <span class="note-item-time">{{ formatTime(note.update_time || note.add_time) }}</span>
+                <span class="note-item-time">{{ formatRelativeTime(note.update_time || note.add_time) }}</span>
                 <span class="note-item-actions" @click.stop>
                     <el-button size="small" text class="note-delete-btn" @click="deleteNote(note)">
                         <el-icon><Delete /></el-icon>
@@ -84,6 +84,7 @@ import { api } from '@/admin/api/index.js';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import { store } from '@/admin/store/index.js';
+import { formatRelativeTime } from '@/admin/utils/index.js';
 import Sortable from 'sortablejs';
 
 const searchKeyword = ref('');
@@ -155,25 +156,6 @@ const onSearch = () => {
     searchTimer = setTimeout(() => {
         store.loadNotes(store.currentCateId, searchKeyword.value);
     }, 300);
-};
-
-const formatTime = (timestamp) => {
-    if(!timestamp) return '';
-    const d = new Date(timestamp * 1000);
-    const now = new Date();
-    const isToday = d.toDateString() === now.toDateString();
-    if(isToday) {
-        return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
-    }
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if(d.toDateString() === yesterday.toDateString()) {
-        return '昨天';
-    }
-    if(d.getFullYear() === now.getFullYear()) {
-        return (d.getMonth() + 1) + '/' + d.getDate();
-    }
-    return d.getFullYear() + '/' + (d.getMonth() + 1) + '/' + d.getDate();
 };
 
 const handleCommand = async (command, note) => {

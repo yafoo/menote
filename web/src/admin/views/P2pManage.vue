@@ -43,7 +43,7 @@
             <div v-for="p in status.pending" :key="p.id" class="p2p-pending-item">
                 <div class="p2p-pending-info">
                     <span class="p2p-pending-id">{{ p.id }}</span>
-                    <span class="p2p-pending-time">{{ formatTime(p.time) }} 尝试 {{ p.attempts }} 次</span>
+                    <span class="p2p-pending-time">{{ formatDateTime(p.time) }} 尝试 {{ p.attempts }} 次</span>
                 </div>
                 <div class="p2p-pending-actions">
                     <el-button size="small" type="primary" @click="authorize(p)">授权</el-button>
@@ -84,7 +84,7 @@
             </el-table-column>
             <el-table-column label="配对时间" width="150">
                 <template #default="{ row }">
-                    <span>{{ formatTime(row.time) }}</span>
+                    <span>{{ formatDateTime(row.time) }}</span>
                 </template>
             </el-table-column>
             <el-table-column label="操作" width="90" fixed="right">
@@ -138,6 +138,7 @@
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { request } from '@/admin/api/index.js';
+import { formatDateTime } from '@/admin/utils/index.js';
 
 const loading = ref(true);
 const status = ref({running: false, nodeId: '', peers: [], pending: [], online: []});
@@ -299,12 +300,6 @@ const removePeer = async (peer) => {
             ElMessage.error(res.msg || '移除失败');
         }
     } catch(e) { /* 用户取消 */ }
-};
-
-const formatTime = (timestamp) => {
-    if(!timestamp) return '';
-    const d = new Date(timestamp * 1000);
-    return d.toLocaleString('zh-CN');
 };
 
 onMounted(() => {
