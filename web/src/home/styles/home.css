@@ -60,7 +60,8 @@
     --accent-soft: #d5f2ea;     /* 标签底 */
     --accent-soft-2: #c3ece1;   /* 标签 hover 底 */
     --accent-tint: #eefaf6;     /* 极淡底、聚焦光晕 */
-    --accent-on: #ffffff;       /* 压在 accent 实底上的前景色 */
+    --accent-on: #ffffff;       /* 压在 accent 实底上的前景色（当前无引用点，
+                                   搜索按钮改淡底后腾出来的。留着，别拿它当画布文字色） */
 
     /* 品牌薄荷（Android 端 logo 同色）。只做点缀，不做正文/正文链接 */
     --brand: #76ccb5;
@@ -76,6 +77,11 @@
     --r-md: 6px;
     --r-lg: 8px;
     --r-pill: 999px;            /* 药丸/圆形语义（标签、头像），不跟着上面三档收 */
+
+    /* 头部控件统一高度：搜索框与主题切换按钮共用这一个值，保证两者严格同高。
+       各自写死高度的话，改一个忘一个就错位——之前正是 38px 的搜索框
+       配着 32px 的按钮。手机端在媒体查询里覆盖成 30px */
+    --ctl-h: 32px;
 
     /* 版心 */
     --wrap: 860px;
@@ -314,14 +320,18 @@ input:focus-visible {
     flex: none;
 }
 
-/* 搜索框 */
+/* 搜索框。高度锁死成 --ctl-h，和右边的主题按钮同高；
+   纵向内边距只留 2px，剩下的交给 align-items 居中——
+   原来是"纵向 3px + 30px 的按钮"把框撑到 38px，比主题按钮高出 6px */
 .header .search-form {
     display: flex;
     align-items: center;
+    height: var(--ctl-h);
+    box-sizing: border-box;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--r-pill);
-    padding: 3px 3px 3px 14px;
+    padding: 2px 3px 2px 14px;
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
@@ -338,34 +348,45 @@ input:focus-visible {
     font-size: 13.5px;
     color: var(--text);
     width: 130px;
-    padding: 5px 0;
+    /* 铺满内容盒高度，让框里上下那 2px 也算可点区域。
+       只写 padding: 0 的话输入框会缩到一行文字高（约 16px），
+       看着框挺大、实际得精准点到文字上才聚焦 */
+    height: 100%;
+    padding: 0;
 }
 
 .header .search-form input::placeholder {
     color: var(--text-4);
 }
 
+/* 26px = 32(框高) − 2(上下 border) − 2×2(上下 padding)，
+   跟框沿之间留 3px 呼吸感。原来 30px 的按钮是顶着 3px 内边距、把框撑高的元凶 */
 .header .search-form button {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex: none;
-    width: 30px;
-    height: 30px;
+    width: 26px;
+    height: 26px;
     border: none;
     border-radius: var(--r-pill);
-    background: var(--accent);
-    color: var(--accent-on);
+    /* 淡青底 + 深青图标，比原来的 accent 实底轻一档：
+       #00796b 实底是整页最重的一块色，压在纯白的搜索框里太抢眼。
+       这组对比度 4.49:1（浅色）/ 6.5:1（暗色），图标本身远高于 3:1 的要求 */
+    background: var(--accent-soft);
+    color: var(--accent);
     cursor: pointer;
-    transition: background 0.18s, transform 0.18s;
+    transition: background 0.18s, color 0.18s, transform 0.18s;
 }
 
 .header .search-form button svg {
     display: block;
 }
 
+/* hover 从淡底进到稍深的标签底（原来是从 accent 到 accent-deep 的"深→更深"） */
 .header .search-form button:hover {
-    background: var(--accent-deep);
+    background: var(--accent-soft-2);
+    color: var(--accent-deep);
 }
 
 .header .search-form button:active {
@@ -380,8 +401,8 @@ input:focus-visible {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 32px;
-    height: 32px;
+    width: var(--ctl-h);
+    height: var(--ctl-h);
     padding: 0;
     border: 1px solid var(--border);
     border-radius: var(--r-pill);
@@ -998,6 +1019,10 @@ input:focus-visible {
     :root {
         --gutter: 18px;
         --wrap: 100%;
+        /* 头部控件一并收到 30px（桌面 32px）：搜索框与主题按钮都读这个值，
+           所以手机上依然严格同高。再往下缩到 26px 虽然还过 WCAG 2.2 的
+           24px 下限，但手机上点着费劲，高度靠收紧搜索表单内边距找回来就够了 */
+        --ctl-h: 30px;
     }
 
     /* 手机端头部：挤成两行紧凑排布（第一行 logo + 工具，第二行导航横向滚动）。
@@ -1068,6 +1093,8 @@ input:focus-visible {
     .header .search-form {
         flex: 1 1 auto;
         min-width: 0;
+        /* 纵向收到 1px：30 − 2(上下 border) − 2×1 = 26px 内容盒，
+           正好放下 26px 的搜索按钮（按钮尺寸不跟着 --ctl-h 缩，免得低于 26px） */
         padding: 1px 1px 1px 12px;
     }
 
@@ -1076,16 +1103,10 @@ input:focus-visible {
         width: auto;
         min-width: 0;
         font-size: 13px;
-        padding: 4px 0;
     }
 
-    /* 主题按钮收到 30px 与搜索按钮对齐（搜索按钮保持桌面尺寸没缩）。
-       再往下缩到 26px 虽然还过 WCAG 2.2 的 24px 下限，但手机上点着费劲，
-       高度靠收紧搜索表单内边距找回来就够了 */
-    .header .theme-toggle {
-        width: 30px;
-        height: 30px;
-    }
+    /* 主题按钮不再单独写尺寸：它和搜索框共用 --ctl-h，
+       手机端的 30px 由本块开头的 :root 覆盖，两者仍然同高 */
 
     .section-title {
         font-size: 19px;
