@@ -62,7 +62,7 @@ menote/
 │   ├── home.html          # 前台入口（构建产出 public/static/dist/home.html）
 │   ├── vendor-vditor.mjs  # 构建时从 node_modules 生成 Vditor 运行时资源（白名单式，约 9.8M）
 │   ├── check-element-plus.mjs  # 构建期自检：EP 三处清单 ↔ 模板里的 el-* 标签/图标
-│   ├── src/admin/         # 后台源码：main.js / App.vue / api / store / router / components / views
+│   ├── src/admin/         # 后台源码：main.js / App.vue / api / store / router / utils / components / views
 │   └── src/home/          # 前台源码：main.js / App.vue / api / store / router / utils / styles / components / views
 ├── public/static/dist/    # 【构建产物，git 忽略】hash 化的 js/css + admin.html + home.html
 ├── public/static/vendor/  # 【构建产物，git 忽略】Vditor 运行时资源（lute/icons/i18n…）
@@ -91,6 +91,7 @@ npm run test:smoke   # 前台 SPA 冒烟测试（需服务已在 3107 运行）
 - Vditor 的 `cdn` 指向 `/static/vendor/vditor`：它运行时仍按 cdn 动态加载 lute/icons/i18n/主题等资源，**其中 icons 走同步 XHR，因此 cdn 必须同源**（换成独立域名会因 CORS 挂掉）
 - 分包用 Rolldown 的 `codeSplitting.groups`（`vendor-vue` / `vendor-element-plus` / `vendor-vditor` / `vendor-vis` / `vendor`），目的是让缓存更耐用；**与 `advancedChunks` 同时指定时后者被忽略**
 - Element Plus **按需引入**：`web/src/admin/main.js` 里显式注册 30 个组件 + 33 行单组件 style import，`@element-plus/icons-vue` 逐个 import。**新增组件必须同时加到 `COMPONENTS` 和 style import 两处**，否则模板里是未解析的自定义元素（生产构建无警告，静默白屏）。`ElLoading` 是插件不是组件，`v-loading` 要 `app.use(ElLoading)` 单独注册
+- 公共小工具放 `web/src/admin/utils/index.js`。其中 `formatRelativeTime`（今天 `HH:mm` / 昨天 / `M/D` / `Y/M/D`）和 `formatDateTime`（`toLocaleString('zh-CN')`）是**两种语义，别互相替换**：前者给列表看"多久以前"，后者给 Token 过期时间、P2P 配对时间这类要精确到秒的场合
 - 上面这三处漏改**不会报任何错**（Vue 生产构建不输出 `Failed to resolve component`），所以 `npm run build` 前会先跑 `web/check-element-plus.mjs`（`npm run check:ep`）做一致性自检：把 main.js 的三份清单和**模板里真实出现的 `el-*` 标签 / PascalCase 图标**双向比对，ERROR 即中断构建。单独跑加 `--warn-only` 只看报告不失败
 
 ## 前台 SPA 架构（2026-09-23 迁移）
@@ -125,6 +126,8 @@ npm run test:smoke   # 前台 SPA 冒烟测试（需服务已在 3107 运行）
 - `store/index.js` 是裸 `reactive`（不是 Pinia）——前台只有"站点配置 + 分类树"这点共享数据，不划算引状态库
 - 详情页 `NoteView.vue` **动态 import** `vditor` + `vditor/dist/index.css`，加载后缓存 Promise，同会话切笔记不重复请求
 - 图谱页 `GraphView.vue` **动态 import** `vis-network/standalone`（615 kB 只在 `/graph` 下载）
+- **头部控件高度共用令牌 `--ctl-h`**（桌面 32px / 手机 30px，定义在 `home.css` 的 `:root` 与媒体查询里），搜索框和主题切换按钮都读它。别给其中一个单独写死高度——搜索框曾被内部的 30px 按钮撑到 38px，跟 32px 的主题按钮差了 6px
+- 搜索按钮是**淡底 + 深色图标**（`--accent-soft` 底 + `--accent` 图标），不是实底。图形控件的对比度按 WCAG **1.4.11 的 3:1** 判（4.5:1 是正文文字的要求），当前浅色 4.49:1 / 暗色 6.53:1
 
 ### 公开接口：`app/api/controller/pub.js`（免认证）
 
