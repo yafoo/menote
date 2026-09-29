@@ -12,5 +12,7 @@ public/static/dist
 public/static/vendor
 fpk/menote.fpk
 .workbuddy-ai
+# PC 端（Go）构建产物（全部落在 pc/dist/）
+pc/dist
 # 临时脚本/截图（.tmp- 前缀，用完即删；不忽略的话很容易被 git add . 带进提交）
 .tmp-*

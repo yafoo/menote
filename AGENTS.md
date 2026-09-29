@@ -38,6 +38,12 @@ MeNote 是一个轻量级个人笔记知识库系统，支持 Markdown 笔记、
 - **JDK**：需要 JDK 20（`D:\Program Files\Java\jdk-20`，PATH 默认 JDK 8 不够）
 - **一键构建**：`android\build-apk.bat`（自动设 JDK20 → assembleRelease → 输出 `MeNote-vX.Y-arm64.apk`）
 
+### PC 端
+- **工程路径**：`pc/`，无界面纯命令行
+- **技术**：Go 1.26+ / `github.com/tmc/go-iroh`（**纯 Go，无 cgo**）
+- **构建**：`pc/build.sh`（Linux/macOS）、`pc/build.bat`（Windows）；产物统一输出到 **`pc/dist/`，文件名为 `menote-<os>-<arch>`**（Windows 加 `.exe`）——当前平台构建与 `all` 交叉编译命名规则一致，不再有 `pc/menote-pc.exe` 这种例外
+- **详见下方「PC 端（Go 客户端）」章节**
+
 ## 目录结构
 
 ```
@@ -45,6 +51,7 @@ menote/
 ├── server.js              # 入口：new App().listen(3107) + require('./lib/p2p').init(app)
 ├── lib/p2p.js             # P2P 服务（@number0/iroh，随主服务启动，ALPN 'menote-p2p/1'）
 ├── android/               # Android 客户端工程（git 随主项目追踪）
+├── pc/                    # PC 端 Go 客户端（纯命令行，详见下方章节）
 ├── app/
 │   ├── admin/             # 后台：controller/{index,login}.js + middleware/auth.js + view/login_index.htm
 │   ├── api/controller/    # REST API：base.js（cookie 或 Bearer token 认证基类）、note/cate/search/graph/site/token/user/upload/p2p.js、pub.js（前台公开，免认证）
@@ -457,6 +464,54 @@ admin 显示：本节点 ID 主显前 10 位短 ID（`shortNodeId` computed）�
   两个要点：① WebView 场景用**外层容器 padding**（不是给 WebView 设 padding），这样 SPA 的 `100vh` 自动等于安全区高度，**页面侧零改动、不需要 `env(safe-area-inset-*)`**；② `ScanActivity` 用 `SystemBarStyle.dark(TRANSPARENT)` 固定浅色系统栏图标，因为相机预览恒为深色，跟随系统浅色主题会出现黑图标盖黑画面。
   两个配套项别漏：① `horizontal = true`——横屏时刘海在侧边、三键导航栏跑到右侧，只避让上下不够；竖屏下这两个方向的 inset 恒为 0 所以无副作用。② **`ime = true` + manifest 的 `windowSoftInputMode="adjustResize"`**——`enableEdgeToEdge()` 关掉了 decorFitsSystemWindows，窗口不再随键盘自动缩小，不显式消费 `ime()` inset 的话键盘会盖住 WebView 里的编辑器和配置页日志面板（**这是开启 edge-to-edge 后相对旧版本新增的回归，Android 14 及以下同样中招**）。
   **新增 Activity 别忘了这一套**，否则同样中招。
+
+### PC 端（Go 客户端，2026-09-28）
+
+目录 `pc/`，无界面纯命令行，与安卓端**同一套思路**（本地 HTTP 代理 → iroh QUIC 双向流 → 服务端 `lib/p2p.js`），只是把 App 换成 CLI。协议侧零改动。
+
+**实现选型：纯 Go 的 `github.com/tmc/go-iroh`**（iroh 协议的洁净室实现，线协议对齐上游 Rust iroh）。已在真机验证与 `@number0/iroh@1.1.0` 服务端完全互通（含白名单拒绝 `0x193 forbidden: not paired`、中继→直连打洞切换）。
+
+- **不涉及 cgo** → `CGO_ENABLED=0` + `GOOS/GOARCH` 即可交叉编译出 windows/linux/darwin × amd64/arm64 六份产物，不需要任何额外工具链。这是选它而不是 cgo 包 `iroh-ffi` 的主因（后者需各平台预编译静态库 + gcc，且**没有 macOS 库**）
+- **要求 Go ≥ 1.26**（`go.mod` 声明 `go 1.26.0` + `toolchain go1.26.7`）。本机 Go 1.21.8 靠 `GOTOOLCHAIN=auto` 自动拉工具链
+- ⚠ **`proxy.golang.org` 在国内不通**（`Bad Gateway`），拉工具链和依赖都要走镜像：`GOPROXY=https://goproxy.cn,direct`
+- ⚠ **`go.mod` 里的 `toolchain` 行别删**：只声明 `go 1.26.0` 时 Go 会去拉**恰好 1.26.0**，而这个版本的 toolchain 包容易下不全（缓存里留 96MB 半成品，正常约 234MB），表现为 `go build` 卡在 `go: downloading go1.26.0` 几分钟不返回。钉一个具体版本即可绕开
+- ⚠ **本机 `GOPATH=D:\Go`**（不是默认的 `~`），所以模块缓存是 `D:\Go\pkg\mod`。`C:\Users\Administrator\go\pkg\mod` 里那份是历史遗留的另一份缓存，两边不通用——依赖只在其中一边时，`go build` 会静默重新下载。判断某份 toolchain 是否可用看目录大小（完整 ~234MB）
+- ⚠ toolchain 下载被中断会留下 `xxx.partial` + 一个残缺的 `toolchain@v0.0.1-goX.Y.Z.<os>-<arch>` 目录，之后任何要用该版本的命令都会报 `remove ...partial: Access is denied` 而直接失败。处理：删掉那个目录和同名 `.partial`（模块缓存里的文件只读，Windows 上先 `chmod -R +w`），或把 `toolchain` 钉到另一个已完整的版本
+
+```
+pc/
+├── main.go                 # CLI：run/pair/id/status/open/version
+├── build.sh / build.bat    # 当前平台（go env 问 GOHOSTOS/ARCH）+ 全平台交叉编译 → dist/menote-<os>-<arch>
+└── internal/
+    ├── config/             # 配置 + 节点密钥（os.UserConfigDir，MENOTE_CONFIG_DIR 可覆盖）
+    ├── nodeid/             # 节点 ID 编解码（RFC4648 base32 小写，与 lib/p2p.js 一致）
+    ├── tunnel/             # iroh endpoint、连接复用、自动重连、路径探测
+    └── proxy/              # 本地 HTTP 代理 → QUIC 双向流
+```
+
+**go-iroh API 速记**（与 `@number0/iroh` 的差异要留意）：
+
+- `iroh.Bind(ctx, iroh.WithSecretKey(sk), iroh.WithALPNs("menote-p2p/1"), iroh.WithRelayMode(relay.ModeDefault()), iroh.WithDNSResolver(nil))`
+- ⚠ **`relay.Mode` 零值是 `ModeDisabled`（纯直连，无中继）**，与 Node 端 `RelayMode.defaultMode()` 不同——不显式传 `relay.ModeDefault()` 就没有中继兜底
+- ⚠ **`WithDNSResolver` 是必需的**：只有节点 ID 没有地址时，靠 number0 生产 DNS(pkarr) 发现解析对端
+- `ep.Connect(ctx, netaddr.NewEndpointAddr(serverID), ALPN)` → `conn.OpenStreamSync(ctx)` → `*Stream`（实现 `io.Reader/Writer`，`CloseWrite()` 半关闭）
+- 路径判定读 `conn.Paths()` 的 `PathInfo.Selected` / `.Relayed`（**没有 `isSelected` 字段**，安卓端那个是 Kotlin 绑定的命名）
+- `key.ParseEndpointID()` 接受 hex(64) 与 **RFC4648 base32(52)**，但**不接受 z-base-32**（pkarr 域名用的那套，字母表不同、长度相同）——服务端/安卓用的都是 RFC4648，所以能直接解析
+- 本机节点 ID 显示要自己编：`base32.StdEncoding.WithPadding(NoPadding)` 转小写（`nodeid.Encode`），`EndpointID.String()` 给的是 hex
+
+**六个已踩过的坑**：
+
+1. **QUIC 握手成功 ≠ 授权通过**。服务端是 `accept` 之后才校验白名单再 `close(403)`，所以 `Connect()` 会正常返回。必须连上后再等 ~2s 做存活确认（`select` 等 `conn.Context().Done()`），否则未配对场景会把"被拒"当成"已连上"
+2. **端口预检不能省**。Windows 允许 `127.0.0.1:3107` 与 `0.0.0.0:3107` **同时 bind**（不像 Linux 直接 `EADDRINUSE`）——本机同时跑着 MeNote 时，只靠 `net.Listen` 失败判断不出端口被占，代理会 bind 成功并把回环流量**抢过来**，用户打开的是本机 MeNote 而不是远端。做法：bind 前先 `net.DialTimeout` 探一次端口
+3. **`menote-pc open` / `status` 没有内存里的实际端口**（会因占用 +1）。靠响应头 `X-Menote-Pc-Proxy` 在候选区间里认出自己的代理，避免把本机 MeNote 误认成代理。⚠ **探测必须打 `/__menote_pc__/ping` 这个就地应答的端点，不能打 `/`**：隧道断着时普通请求会被 `Acquire` 挡住最多 10s 才吐 502 提示页，探测超时（800ms）→ 明明在跑却报「本地代理未运行」
+4. **HTTP 转发用标准库而非手写**：`httputil.ReverseProxy` + 自定义 `RoundTripper`，`outreq.Close = true` 让 `Request.Write` 写出 `Connection: close`（单流单请求语义），响应用 `http.ReadResponse` 流式读——比安卓端 `readToEnd` 缓冲整个响应（上限 64MB/请求）更适合大附件
+5. **跨进程读隧道状态走回环 HTTP**：`run` 和 `status` 是两个进程，后者拿不到前者内存里的「连没连上 / 直连还是中继」。代理在 `/__menote_pc__/status` 自报 JSON（同样就地应答、不进隧道），`FetchStatus` 沿候选端口区间找它。比 pid 文件 / Unix socket / 命名管道省掉一堆平台差异。**`status` 因此不必再绑一个 iroh endpoint**（只在代理没跑时才退回绑定，用于推导本机节点 ID）
+6. **断线时必须清 `connectedAt` / `path` / `remoteAddr`**：`onLost` 原来只清了 `conn` 和 `state`，结果断线期间「已连接时长」继续涨、`path` 还显示上一次的直连地址——`status` 会报出「重连中 + 直连 ip:x + 已连接 52 秒」这种自相矛盾的信息。这三个字段要跟 `conn` 一起清
+
+**验证方式**：服务端就在本机，起服务后可直接对 `http://127.0.0.1:<代理端口>` 做真机联调。注意本机环境有 `HTTP_PROXY`，**curl 必须加 `--noproxy '*'`**，否则请求会被系统代理截走（症状：返回一个带 "upstream connect failed" 的 502，看着像代理挂了）；另外 Git Bash 的 `/tmp`、`/d/...`、`/dev/null` 路径 Windows 版 curl 不认（`-o /dev/null` 会 exit 23 且报 0 字节），要写成 `D:/...` 或直接管道。
+
+**端到端联调要隔离 P2P 数据，但又不能用子目录里的启动器**：写个临时启动器 monkey-patch `P2P.init` 注入 `dataDir` 是对的做法（绝不碰真实 `data/p2p-key.bin` / `p2p-allow.json`），但**启动器文件必须放在项目根**——jj.js 按「主模块所在目录」推导应用根，放 `.tmp-xxx/launch.js` 里会让 `config/`、`app/` 全找不到，现象是**所有路由 404（连 `/api/pub/config` 都 404）**，很容易误判成业务代码坏了。隔离目录里的白名单可以直接写文件，但要重启服务端才会 `loadAllow()` 生效（后台授权走的是内存 Map，才支持热更新）。
+
 
 ### 测试隔离（必须遵守）
 **测 P2P 一律用 `P2P.init(app, {dataDir: 临时目录})`**（v1.8 后支持）——之前测试脚本直接跑、清理代码误删了真实 `data/p2p-key.bin`/`p2p-allow.json`，导致用户已配对数据丢失。教训：涉及真实数据文件的测试，永远先设隔离目录再跑。
