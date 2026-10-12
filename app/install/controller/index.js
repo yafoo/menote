@@ -1,7 +1,9 @@
 const {Controller, loader} = require('jj.js');
 const {version: VERSION} = require('../../../package.json');
 const {readFile, writeFile} = require('fs').promises;
-const {join} = require('path');
+// jj.js 1.2 把 this.$xxx 放在 AsyncLocalStorage 里。sqlite3 的原生回调
+// 不会把这份上下文带进来，startTrans(fn) 又是在那个回调里直接调用 fn。
+const storage = require('jj.js/lib/storage');
 
 class Index extends Controller
 {
@@ -62,34 +64,37 @@ class Index extends Controller
         // 使用更健壮的分隔方式
         const statements = sql.split(/;\s*\n/).filter(s => s.trim());
         const db = this.$db;
+        const requestStore = storage.getStore();
 
         await db.startTrans(async () => {
-            // 执行建表语句
-            for(const stmt of statements) {
-                const s = stmt.trim();
-                if(s) await db.query(s);
-            }
-
-            // 创建管理员用户（固定 id=1，重装时覆盖而非新增）
-            const exists = await db.table('user').where({id: 1}).count();
-            if(exists) {
-                await this.$model.user.saveUser({id: 1, username, password});
-            } else {
-                await this.$model.user.saveUser({username, password});
-            }
-
-            // 插入默认站点配置（先检查是否已存在，避免重装时重复）
-            const siteData = [
-                {group: 'basic', type: 'input', key: 'sitename', title: '站点名称', value: 'MeNote', tips: '', sort: 0},
-                {group: 'basic', type: 'textarea', key: 'description', title: '站点描述', value: '我的个人知识库', tips: '', sort: 1},
-                {group: 'display', type: 'input', key: 'list_rows', title: '列表条数', value: '20', tips: '', sort: 0},
-            ];
-            for(const item of siteData) {
-                const exists = await db.table('site').where({key: item.key}).count();
-                if(!exists) {
-                    await db.table('site').insert(item);
+            await storage.run(requestStore, async () => {
+                // 执行建表语句
+                for(const stmt of statements) {
+                    const s = stmt.trim();
+                    if(s) await db.query(s);
                 }
-            }
+
+                // 创建管理员用户（固定 id=1，重装时覆盖而非新增）
+                const exists = await db.table('user').where({id: 1}).count();
+                if(exists) {
+                    await this.$model.user.saveUser({id: 1, username, password});
+                } else {
+                    await this.$model.user.saveUser({username, password});
+                }
+
+                // 插入默认站点配置（先检查是否已存在，避免重装时重复）
+                const siteData = [
+                    {group: 'basic', type: 'input', key: 'sitename', title: '站点名称', value: 'MeNote', tips: '', sort: 0},
+                    {group: 'basic', type: 'textarea', key: 'description', title: '站点描述', value: '我的个人知识库', tips: '', sort: 1},
+                    {group: 'display', type: 'input', key: 'list_rows', title: '列表条数', value: '20', tips: '', sort: 0},
+                ];
+                for(const item of siteData) {
+                    const exists = await db.table('site').where({key: item.key}).count();
+                    if(!exists) {
+                        await db.table('site').insert(item);
+                    }
+                }
+            });
         });
     }
 
