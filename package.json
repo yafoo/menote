@@ -1,6 +1,6 @@
 {
   "name": "menote",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "轻量级个人知识库系统",
   "main": "server.js",
   "scripts": {
